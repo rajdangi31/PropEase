@@ -9,38 +9,242 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as TenantRouteImport } from './routes/tenant'
+import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as TenantIndexRouteImport } from './routes/tenant.index'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as TenantPayRouteImport } from './routes/tenant.pay'
+import { Route as TenantNotificationsRouteImport } from './routes/tenant.notifications'
+import { Route as TenantMaintenanceRouteImport } from './routes/tenant.maintenance'
+import { Route as TenantDocumentsRouteImport } from './routes/tenant.documents'
+import { Route as AdminTenantsRouteImport } from './routes/admin.tenants'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
+import { Route as AdminPropertiesRouteImport } from './routes/admin.properties'
+import { Route as AdminPaymentsRouteImport } from './routes/admin.payments'
+import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
+import { Route as AdminMaintenanceRouteImport } from './routes/admin.maintenance'
 
+const TenantRoute = TenantRouteImport.update({
+  id: '/tenant',
+  path: '/tenant',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthRoute = AuthRouteImport.update({
+  id: '/auth',
+  path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TenantIndexRoute = TenantIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => TenantRoute,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const TenantPayRoute = TenantPayRouteImport.update({
+  id: '/pay',
+  path: '/pay',
+  getParentRoute: () => TenantRoute,
+} as any)
+const TenantNotificationsRoute = TenantNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => TenantRoute,
+} as any)
+const TenantMaintenanceRoute = TenantMaintenanceRouteImport.update({
+  id: '/maintenance',
+  path: '/maintenance',
+  getParentRoute: () => TenantRoute,
+} as any)
+const TenantDocumentsRoute = TenantDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => TenantRoute,
+} as any)
+const AdminTenantsRoute = AdminTenantsRouteImport.update({
+  id: '/tenants',
+  path: '/tenants',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPropertiesRoute = AdminPropertiesRouteImport.update({
+  id: '/properties',
+  path: '/properties',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPaymentsRoute = AdminPaymentsRouteImport.update({
+  id: '/payments',
+  path: '/payments',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminNotificationsRoute = AdminNotificationsRouteImport.update({
+  id: '/notifications',
+  path: '/notifications',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminMaintenanceRoute = AdminMaintenanceRouteImport.update({
+  id: '/maintenance',
+  path: '/maintenance',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/tenant': typeof TenantRouteWithChildren
+  '/admin/maintenance': typeof AdminMaintenanceRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
+  '/admin/payments': typeof AdminPaymentsRoute
+  '/admin/properties': typeof AdminPropertiesRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/tenants': typeof AdminTenantsRoute
+  '/tenant/documents': typeof TenantDocumentsRoute
+  '/tenant/maintenance': typeof TenantMaintenanceRoute
+  '/tenant/notifications': typeof TenantNotificationsRoute
+  '/tenant/pay': typeof TenantPayRoute
+  '/admin/': typeof AdminIndexRoute
+  '/tenant/': typeof TenantIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/auth': typeof AuthRoute
+  '/admin/maintenance': typeof AdminMaintenanceRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
+  '/admin/payments': typeof AdminPaymentsRoute
+  '/admin/properties': typeof AdminPropertiesRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/tenants': typeof AdminTenantsRoute
+  '/tenant/documents': typeof TenantDocumentsRoute
+  '/tenant/maintenance': typeof TenantMaintenanceRoute
+  '/tenant/notifications': typeof TenantNotificationsRoute
+  '/tenant/pay': typeof TenantPayRoute
+  '/admin': typeof AdminIndexRoute
+  '/tenant': typeof TenantIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
+  '/auth': typeof AuthRoute
+  '/tenant': typeof TenantRouteWithChildren
+  '/admin/maintenance': typeof AdminMaintenanceRoute
+  '/admin/notifications': typeof AdminNotificationsRoute
+  '/admin/payments': typeof AdminPaymentsRoute
+  '/admin/properties': typeof AdminPropertiesRoute
+  '/admin/settings': typeof AdminSettingsRoute
+  '/admin/tenants': typeof AdminTenantsRoute
+  '/tenant/documents': typeof TenantDocumentsRoute
+  '/tenant/maintenance': typeof TenantMaintenanceRoute
+  '/tenant/notifications': typeof TenantNotificationsRoute
+  '/tenant/pay': typeof TenantPayRoute
+  '/admin/': typeof AdminIndexRoute
+  '/tenant/': typeof TenantIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/admin'
+    | '/auth'
+    | '/tenant'
+    | '/admin/maintenance'
+    | '/admin/notifications'
+    | '/admin/payments'
+    | '/admin/properties'
+    | '/admin/settings'
+    | '/admin/tenants'
+    | '/tenant/documents'
+    | '/tenant/maintenance'
+    | '/tenant/notifications'
+    | '/tenant/pay'
+    | '/admin/'
+    | '/tenant/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/auth'
+    | '/admin/maintenance'
+    | '/admin/notifications'
+    | '/admin/payments'
+    | '/admin/properties'
+    | '/admin/settings'
+    | '/admin/tenants'
+    | '/tenant/documents'
+    | '/tenant/maintenance'
+    | '/tenant/notifications'
+    | '/tenant/pay'
+    | '/admin'
+    | '/tenant'
+  id:
+    | '__root__'
+    | '/'
+    | '/admin'
+    | '/auth'
+    | '/tenant'
+    | '/admin/maintenance'
+    | '/admin/notifications'
+    | '/admin/payments'
+    | '/admin/properties'
+    | '/admin/settings'
+    | '/admin/tenants'
+    | '/tenant/documents'
+    | '/tenant/maintenance'
+    | '/tenant/notifications'
+    | '/tenant/pay'
+    | '/admin/'
+    | '/tenant/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
+  AuthRoute: typeof AuthRoute
+  TenantRoute: typeof TenantRouteWithChildren
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/tenant': {
+      id: '/tenant'
+      path: '/tenant'
+      fullPath: '/tenant'
+      preLoaderRoute: typeof TenantRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auth': {
+      id: '/auth'
+      path: '/auth'
+      fullPath: '/auth'
+      preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,21 +252,140 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tenant/': {
+      id: '/tenant/'
+      path: '/'
+      fullPath: '/tenant/'
+      preLoaderRoute: typeof TenantIndexRouteImport
+      parentRoute: typeof TenantRoute
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/tenant/pay': {
+      id: '/tenant/pay'
+      path: '/pay'
+      fullPath: '/tenant/pay'
+      preLoaderRoute: typeof TenantPayRouteImport
+      parentRoute: typeof TenantRoute
+    }
+    '/tenant/notifications': {
+      id: '/tenant/notifications'
+      path: '/notifications'
+      fullPath: '/tenant/notifications'
+      preLoaderRoute: typeof TenantNotificationsRouteImport
+      parentRoute: typeof TenantRoute
+    }
+    '/tenant/maintenance': {
+      id: '/tenant/maintenance'
+      path: '/maintenance'
+      fullPath: '/tenant/maintenance'
+      preLoaderRoute: typeof TenantMaintenanceRouteImport
+      parentRoute: typeof TenantRoute
+    }
+    '/tenant/documents': {
+      id: '/tenant/documents'
+      path: '/documents'
+      fullPath: '/tenant/documents'
+      preLoaderRoute: typeof TenantDocumentsRouteImport
+      parentRoute: typeof TenantRoute
+    }
+    '/admin/tenants': {
+      id: '/admin/tenants'
+      path: '/tenants'
+      fullPath: '/admin/tenants'
+      preLoaderRoute: typeof AdminTenantsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/properties': {
+      id: '/admin/properties'
+      path: '/properties'
+      fullPath: '/admin/properties'
+      preLoaderRoute: typeof AdminPropertiesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/payments': {
+      id: '/admin/payments'
+      path: '/payments'
+      fullPath: '/admin/payments'
+      preLoaderRoute: typeof AdminPaymentsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/notifications': {
+      id: '/admin/notifications'
+      path: '/notifications'
+      fullPath: '/admin/notifications'
+      preLoaderRoute: typeof AdminNotificationsRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/maintenance': {
+      id: '/admin/maintenance'
+      path: '/maintenance'
+      fullPath: '/admin/maintenance'
+      preLoaderRoute: typeof AdminMaintenanceRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
+interface AdminRouteChildren {
+  AdminMaintenanceRoute: typeof AdminMaintenanceRoute
+  AdminNotificationsRoute: typeof AdminNotificationsRoute
+  AdminPaymentsRoute: typeof AdminPaymentsRoute
+  AdminPropertiesRoute: typeof AdminPropertiesRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
+  AdminTenantsRoute: typeof AdminTenantsRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminMaintenanceRoute: AdminMaintenanceRoute,
+  AdminNotificationsRoute: AdminNotificationsRoute,
+  AdminPaymentsRoute: AdminPaymentsRoute,
+  AdminPropertiesRoute: AdminPropertiesRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
+  AdminTenantsRoute: AdminTenantsRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
+interface TenantRouteChildren {
+  TenantDocumentsRoute: typeof TenantDocumentsRoute
+  TenantMaintenanceRoute: typeof TenantMaintenanceRoute
+  TenantNotificationsRoute: typeof TenantNotificationsRoute
+  TenantPayRoute: typeof TenantPayRoute
+  TenantIndexRoute: typeof TenantIndexRoute
+}
+
+const TenantRouteChildren: TenantRouteChildren = {
+  TenantDocumentsRoute: TenantDocumentsRoute,
+  TenantMaintenanceRoute: TenantMaintenanceRoute,
+  TenantNotificationsRoute: TenantNotificationsRoute,
+  TenantPayRoute: TenantPayRoute,
+  TenantIndexRoute: TenantIndexRoute,
+}
+
+const TenantRouteWithChildren =
+  TenantRoute._addFileChildren(TenantRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
+  AuthRoute: AuthRoute,
+  TenantRoute: TenantRouteWithChildren,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}
