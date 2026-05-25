@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: propease-backend
+  profiles:
+    active: dev
+
+server:
+  port: 8080
+  servlet:
+    context-path: /
+
+# --- JWT ---
+jwt:
+  secret: PropEase256BitSecretKeyForJwtTokenGeneration2025SecureEnough
+  access-expiration-ms: 900000
+  refresh-expiration-ms: 604800000
+
+# --- SpringDoc / Swagger ---
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs

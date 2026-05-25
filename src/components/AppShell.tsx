@@ -14,7 +14,7 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { properties, notifications } from "@/lib/mock-data";
+import { useProperties, useNotifications, useMe, useTenantDashboard } from "@/hooks/useApi";
 
 type NavItem = { to: string; label: string; icon: typeof LayoutDashboard };
 
@@ -30,6 +30,10 @@ const adminNav: NavItem[] = [
 
 function SidebarContent({ activeProperty, onNavigate }: { activeProperty: string; onNavigate?: () => void }) {
   const location = useLocation();
+  const { data: properties } = useProperties();
+  const { data: me } = useMe();
+  const props = properties || [];
+  
   return (
     <div className="flex h-full flex-col text-sidebar-foreground">
       <div className="px-5 py-5">
@@ -47,7 +51,7 @@ function SidebarContent({ activeProperty, onNavigate }: { activeProperty: string
             <button className="flex w-full items-center justify-between rounded-lg bg-sidebar-accent px-3 py-2.5 text-left text-sm transition hover:opacity-90">
               <div className="min-w-0">
                 <p className="truncate text-xs text-sidebar-foreground/60">Property</p>
-                <p className="truncate font-medium">{activeProperty}</p>
+                <p className="truncate font-medium">{activeProperty || "All Properties"}</p>
               </div>
               <ChevronDown className="h-4 w-4 shrink-0 opacity-70" />
             </button>
@@ -55,7 +59,7 @@ function SidebarContent({ activeProperty, onNavigate }: { activeProperty: string
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuLabel>Switch property</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            {properties.map((p) => (
+            {props.map((p: any) => (
               <DropdownMenuItem key={p.id}>{p.name}</DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
@@ -91,13 +95,15 @@ function SidebarContent({ activeProperty, onNavigate }: { activeProperty: string
       <div className="border-t border-sidebar-border p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">EH</AvatarFallback>
+            <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
+              {me?.firstName?.[0]}{me?.lastName?.[0]}
+            </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">Elena Hayes</p>
-            <p className="truncate text-xs text-sidebar-foreground/60">Property Owner</p>
+            <p className="truncate text-sm font-medium">{me?.firstName} {me?.lastName}</p>
+            <p className="truncate text-xs text-sidebar-foreground/60">{me?.role === "LANDLORD" ? "Property Owner" : "Tenant"}</p>
           </div>
-          <Link to="/" aria-label="Sign out" className="rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground">
+          <Link to="/" aria-label="Sign out" className="rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground" onClick={() => localStorage.removeItem("accessToken")}>
             <LogOut className="h-4 w-4" />
           </Link>
         </div>
@@ -110,7 +116,11 @@ export function AppShell({ children, role = "admin" }: { children?: ReactNode; r
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
   const path = router.state.location.pathname;
-  const activeProperty = properties[0].name;
+  
+  const { data: properties } = useProperties();
+  const { data: notifications } = useNotifications();
+  const activeProperty = properties?.[0]?.name || "Loading...";
+  const notifs = notifications || [];
 
   const title = (() => {
     if (role === "tenant") {
@@ -168,21 +178,23 @@ export function AppShell({ children, role = "admin" }: { children?: ReactNode; r
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="relative">
                   <Bell className="h-4 w-4" />
-                  <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />
+                  {notifs.length > 0 && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-accent" />}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80">
                 <DropdownMenuLabel className="flex items-center justify-between">
-                  Notifications <Badge variant="secondary">{notifications.length}</Badge>
+                  Notifications <Badge variant="secondary">{notifs.length}</Badge>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                {notifications.map((n) => (
+                {notifs.length > 0 ? notifs.map((n: any) => (
                   <DropdownMenuItem key={n.id} className="flex flex-col items-start gap-0.5 py-2.5">
                     <p className="text-sm font-medium">{n.title}</p>
-                    <p className="text-xs text-muted-foreground">{n.body}</p>
-                    <p className="text-[10px] text-muted-foreground">{n.time}</p>
+                    <p className="text-xs text-muted-foreground">{n.message}</p>
+                    <p className="text-[10px] text-muted-foreground">{new Date(n.createdAt).toLocaleDateString()}</p>
                   </DropdownMenuItem>
-                ))}
+                )) : (
+                  <div className="p-4 text-center text-sm text-muted-foreground">No notifications</div>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -198,6 +210,9 @@ export function AppShell({ children, role = "admin" }: { children?: ReactNode; r
 
 function TenantSidebar({ onNavigate }: { onNavigate?: () => void }) {
   const location = useLocation();
+  const { data: me } = useMe();
+  const { data: tenantMe } = useTenantDashboard();
+  
   const items: NavItem[] = [
     { to: "/tenant", label: "My Dashboard", icon: LayoutDashboard },
     { to: "/tenant/pay", label: "Pay Rent", icon: CreditCard },
@@ -217,8 +232,8 @@ function TenantSidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       <div className="px-5 pb-3">
         <p className="text-xs text-sidebar-foreground/60">Welcome back</p>
-        <p className="text-sm font-medium">Sarah Chen</p>
-        <p className="text-xs text-sidebar-foreground/60">Maple Heights · 101</p>
+        <p className="text-sm font-medium">{me?.firstName} {me?.lastName}</p>
+        <p className="text-xs text-sidebar-foreground/60">{tenantMe?.unit || "No Unit"}</p>
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {items.map((item) => {
@@ -244,10 +259,11 @@ function TenantSidebar({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
       <div className="border-t border-sidebar-border p-3">
-        <Link to="/" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent">
+        <Link to="/" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent" onClick={() => localStorage.removeItem("accessToken")}>
           <LogOut className="h-4 w-4" /> Sign out
         </Link>
       </div>
     </div>
   );
 }
+

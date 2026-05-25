@@ -7,26 +7,65 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { api } from "@/lib/api";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/auth")({
   component: AuthPage,
 });
 
 const roles = [
-  { id: "admin", label: "Property Owner", desc: "Full access to all features", icon: Building2, to: "/admin" },
-  { id: "manager", label: "Manager", desc: "All except billing & settings", icon: ShieldCheck, to: "/admin" },
-  { id: "staff", label: "Maintenance Staff", desc: "Assigned requests only", icon: Wrench, to: "/admin/maintenance" },
-  { id: "tenant", label: "Tenant", desc: "Pay rent, submit requests", icon: User, to: "/tenant" },
+  { id: "ADMIN", label: "Property Owner", desc: "Full access to all features", icon: Building2, to: "/admin" },
+  { id: "MANAGER", label: "Manager", desc: "All except billing & settings", icon: ShieldCheck, to: "/admin" },
+  { id: "MAINTENANCE", label: "Maintenance Staff", desc: "Assigned requests only", icon: Wrench, to: "/admin/maintenance" },
+  { id: "TENANT", label: "Tenant", desc: "Pay rent, submit requests", icon: User, to: "/tenant" },
 ] as const;
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<(typeof roles)[number]["id"]>("admin");
+  const [role, setRole] = useState<(typeof roles)[number]["id"]>("ADMIN");
+  
+  const [email, setEmail] = useState("elena@propease.app");
+  const [password, setPassword] = useState("demopassword");
+  
+  const [regFirstName, setRegFirstName] = useState("");
+  const [regLastName, setRegLastName] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regPassword, setRegPassword] = useState("");
 
-  const submit = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const target = roles.find((r) => r.id === role)!;
-    navigate({ to: target.to });
+    try {
+      const response = await api.post("/auth/login", { email, password });
+      localStorage.setItem("auth_token", response.accessToken);
+      toast.success("Successfully signed in");
+      
+      const userRole = response.user.role;
+      const target = roles.find((r) => r.id === userRole) || roles[0];
+      navigate({ to: target.to });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to sign in");
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const response = await api.post("/auth/register", {
+        firstName: regFirstName,
+        lastName: regLastName,
+        email: regEmail,
+        password: regPassword,
+        role: role,
+      });
+      localStorage.setItem("auth_token", response.accessToken);
+      toast.success("Account created successfully");
+      
+      const target = roles.find((r) => r.id === role)!;
+      navigate({ to: target.to });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to create account");
+    }
   };
 
   return (
@@ -73,49 +112,44 @@ function AuthPage() {
             </TabsList>
 
             <TabsContent value="signin" className="mt-6">
-              <form className="space-y-4" onSubmit={submit}>
+              <form className="space-y-4" onSubmit={handleLogin}>
                 <div className="space-y-1.5">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="you@example.com" defaultValue="elena@propease.app" />
+                  <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" defaultValue="demopassword" />
+                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
                 </div>
-                <RolePicker role={role} setRole={setRole} />
                 <Button type="submit" className="h-11 w-full text-base">Sign in</Button>
               </form>
             </TabsContent>
 
             <TabsContent value="signup" className="mt-6">
-              <form className="space-y-4" onSubmit={submit}>
+              <form className="space-y-4" onSubmit={handleRegister}>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1.5">
                     <Label htmlFor="fn">First name</Label>
-                    <Input id="fn" />
+                    <Input id="fn" value={regFirstName} onChange={(e) => setRegFirstName(e.target.value)} required />
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="ln">Last name</Label>
-                    <Input id="ln" />
+                    <Input id="ln" value={regLastName} onChange={(e) => setRegLastName(e.target.value)} required />
                   </div>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="email2">Email</Label>
-                  <Input id="email2" type="email" placeholder="you@example.com" />
+                  <Input id="email2" type="email" placeholder="you@example.com" value={regEmail} onChange={(e) => setRegEmail(e.target.value)} required />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="password2">Password</Label>
-                  <Input id="password2" type="password" />
+                  <Input id="password2" type="password" value={regPassword} onChange={(e) => setRegPassword(e.target.value)} required minLength={6} />
                 </div>
                 <RolePicker role={role} setRole={setRole} />
                 <Button type="submit" className="h-11 w-full text-base">Create account</Button>
               </form>
             </TabsContent>
           </Tabs>
-
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            This is a demo — any credentials work.
-          </p>
         </div>
       </div>
     </div>
@@ -155,3 +189,4 @@ function RolePicker({
     </div>
   );
 }
+

@@ -3,25 +3,43 @@ import {
   Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend,
   Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { ArrowUpRight, CalendarClock, CreditCard, Home, Wrench, TrendingUp } from "lucide-react";
-import { activity, leaseAlerts, maintenanceResponse, revenueSeries, unitStatusBreakdown } from "@/lib/mock-data";
+import { ArrowUpRight, CalendarClock, CreditCard, Home, Wrench, TrendingUp, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useAdminStats } from "@/hooks/useApi";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
 });
 
-const kpis = [
-  { label: "Occupancy Rate", value: "94.2%", delta: "+2.1%", icon: Home, tone: "success" as const },
-  { label: "Rent Collection", value: "96%", delta: "+1.4%", icon: CreditCard, tone: "success" as const },
-  { label: "Open Requests", value: "7", delta: "2 high priority", icon: Wrench, tone: "warning" as const },
-  { label: "Monthly Revenue", value: "$132.4k", delta: "+5.8%", icon: TrendingUp, tone: "success" as const },
-];
-
 const donutColors = ["var(--success)", "var(--destructive)", "var(--warning)"];
 
 function AdminDashboard() {
+  const { data, isLoading, error } = useAdminStats();
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="flex h-64 items-center justify-center text-destructive">
+        Failed to load dashboard data.
+      </div>
+    );
+  }
+
+  const kpis = [
+    { label: "Occupancy Rate", value: data.occupancyRate, delta: data.occupancyDelta, icon: Home, tone: "success" as const },
+    { label: "Rent Collection", value: data.rentCollectionRate, delta: data.rentCollectionDelta, icon: CreditCard, tone: "success" as const },
+    { label: "Open Requests", value: data.openRequests.toString(), delta: data.openRequestsNote, icon: Wrench, tone: "warning" as const },
+    { label: "Monthly Revenue", value: data.monthlyRevenue, delta: data.revenueDelta, icon: TrendingUp, tone: "success" as const },
+  ];
+
   return (
     <div className="space-y-6">
       {/* KPIs */}
@@ -54,11 +72,11 @@ function AdminDashboard() {
               <CardTitle className="text-base">Revenue (last 6 months)</CardTitle>
               <p className="text-xs text-muted-foreground">Total collected rent across all properties</p>
             </div>
-            <Badge variant="secondary">+5.8%</Badge>
+            <Badge variant="secondary">{data.revenueDelta}</Badge>
           </CardHeader>
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueSeries} margin={{ left: -10, right: 8, top: 8, bottom: 0 }}>
+              <AreaChart data={data.revenueSeries} margin={{ left: -10, right: 8, top: 8, bottom: 0 }}>
                 <defs>
                   <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.35} />
@@ -87,9 +105,9 @@ function AdminDashboard() {
           <CardContent className="h-72">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={unitStatusBreakdown} dataKey="value" innerRadius={55} outerRadius={85} paddingAngle={3} stroke="var(--card)" strokeWidth={3}>
-                  {unitStatusBreakdown.map((_, i) => (
-                    <Cell key={i} fill={donutColors[i]} />
+                <Pie data={data.unitStatusBreakdown} dataKey="value" innerRadius={55} outerRadius={85} paddingAngle={3} stroke="var(--card)" strokeWidth={3}>
+                  {data.unitStatusBreakdown.map((_: any, i: number) => (
+                    <Cell key={i} fill={donutColors[i % donutColors.length]} />
                   ))}
                 </Pie>
                 <Tooltip contentStyle={{ background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8, fontSize: 12 }} />
@@ -109,7 +127,7 @@ function AdminDashboard() {
           </CardHeader>
           <CardContent className="h-64">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={maintenanceResponse} margin={{ left: -10, right: 8, top: 8, bottom: 0 }}>
+              <BarChart data={data.maintenanceResponse} margin={{ left: -10, right: 8, top: 8, bottom: 0 }}>
                 <CartesianGrid stroke="var(--border)" strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="day" stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} />
                 <YAxis stroke="var(--muted-foreground)" fontSize={12} tickLine={false} axisLine={false} unit="h" />
@@ -125,7 +143,7 @@ function AdminDashboard() {
             <CardTitle className="text-base">Recent activity</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {activity.map((a) => (
+            {data.recentActivity.map((a: any) => (
               <div key={a.id} className="flex items-start gap-3">
                 <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${
                   a.type === "payment" ? "bg-success" : a.type === "maintenance" ? "bg-warning" : "bg-accent"
@@ -147,11 +165,11 @@ function AdminDashboard() {
             <CardTitle className="text-base">Lease expirations · next 60 days</CardTitle>
             <p className="text-xs text-muted-foreground">Reach out before they slip into month-to-month</p>
           </div>
-          <Badge variant="outline" className="gap-1"><CalendarClock className="h-3 w-3" /> {leaseAlerts.length} upcoming</Badge>
+          <Badge variant="outline" className="gap-1"><CalendarClock className="h-3 w-3" /> {data.leaseAlerts.length} upcoming</Badge>
         </CardHeader>
         <CardContent>
           <div className="divide-y divide-border">
-            {leaseAlerts.map((l) => (
+            {data.leaseAlerts.map((l: any) => (
               <div key={l.tenant} className="flex items-center justify-between py-3">
                 <div>
                   <p className="text-sm font-medium">{l.tenant}</p>
@@ -169,3 +187,4 @@ function AdminDashboard() {
     </div>
   );
 }
+

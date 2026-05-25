@@ -1,6 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CreditCard, Download, FileText, Plus } from "lucide-react";
-import { payments } from "@/lib/mock-data";
+import { CreditCard, Download, FileText, Plus, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -11,23 +10,39 @@ import { Label } from "@/components/ui/label";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import { useAdminPayments, usePaymentSummary } from "@/hooks/useApi";
 
 export const Route = createFileRoute("/admin/payments")({
   component: PaymentsPage,
 });
 
 function statusBadge(s: string) {
-  if (s === "Paid") return <Badge className="bg-success/15 text-success hover:bg-success/15">✅ Paid</Badge>;
-  if (s === "Pending") return <Badge variant="outline" className="border-warning/50 text-warning">⏳ Pending</Badge>;
-  return <Badge variant="outline" className="border-destructive/50 text-destructive">🔴 Late</Badge>;
+  if (s === "PAID") return <Badge className="bg-success/15 text-success hover:bg-success/15">✅ Paid</Badge>;
+  if (s === "PENDING") return <Badge variant="outline" className="border-warning/50 text-warning">⏳ Pending</Badge>;
+  if (s === "LATE") return <Badge variant="outline" className="border-destructive/50 text-destructive">🔴 Late</Badge>;
+  return <Badge variant="outline">{s}</Badge>;
 }
 
 function PaymentsPage() {
+  const { data: payments, isLoading: loadingPayments } = useAdminPayments();
+  const { data: summary, isLoading: loadingSummary } = usePaymentSummary();
+
+  const isLoading = loadingPayments || loadingSummary;
+
+  if (isLoading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   const totals = {
-    collected: payments.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0),
-    pending: payments.filter((p) => p.status === "Pending").reduce((s, p) => s + p.amount, 0),
-    late: payments.filter((p) => p.status === "Late").reduce((s, p) => s + p.amount, 0),
+    collected: summary?.collectedThisMonth || 0,
+    pending: summary?.pendingAmount || 0,
+    late: summary?.lateAmount || 0,
   };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -71,15 +86,15 @@ function PaymentsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payments.map((p, i) => (
+                  {payments?.map((p: any, i: number) => (
                     <TableRow key={p.id} className={i % 2 === 1 ? "bg-muted/30" : ""}>
-                      <TableCell className="font-medium">{p.tenant}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{p.unit}</TableCell>
+                      <TableCell className="font-medium">{p.tenantId}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{p.unitId}</TableCell>
                       <TableCell className="font-semibold">${p.amount.toLocaleString()}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{p.due}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{new Date(p.dueDate).toLocaleDateString()}</TableCell>
                       <TableCell>{statusBadge(p.status)}</TableCell>
                       <TableCell className="text-right">
-                        {p.status === "Paid" ? (
+                        {p.status === "PAID" ? (
                           <Button size="sm" variant="ghost"><FileText className="mr-1 h-3.5 w-3.5" /> Receipt</Button>
                         ) : (
                           <Button size="sm">Send Reminder</Button>
@@ -87,6 +102,13 @@ function PaymentsPage() {
                       </TableCell>
                     </TableRow>
                   ))}
+                  {(!payments || payments.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={6} className="h-24 text-center text-muted-foreground">
+                        No payments found
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
@@ -169,3 +191,4 @@ function Toggle({ label, defaultChecked }: { label: string; defaultChecked?: boo
     </div>
   );
 }
+

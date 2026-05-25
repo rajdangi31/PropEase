@@ -1,6 +1,9 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/lib/theme";
+
+const queryClient = new QueryClient();
 
 function NotFoundComponent() {
   return (
@@ -64,8 +67,11 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   return (
-    <ThemeProvider>
-      <Outlet />
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <Outlet />
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
+
