@@ -25,6 +25,7 @@ import { Route as AdminPropertiesRouteImport } from './routes/admin.properties'
 import { Route as AdminPaymentsRouteImport } from './routes/admin.payments'
 import { Route as AdminNotificationsRouteImport } from './routes/admin.notifications'
 import { Route as AdminMaintenanceRouteImport } from './routes/admin.maintenance'
+import { Route as AdminDocumentsRouteImport } from './routes/admin.documents'
 
 const TenantRoute = TenantRouteImport.update({
   id: '/tenant',
@@ -106,12 +107,18 @@ const AdminMaintenanceRoute = AdminMaintenanceRouteImport.update({
   path: '/maintenance',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminDocumentsRoute = AdminDocumentsRouteImport.update({
+  id: '/documents',
+  path: '/documents',
+  getParentRoute: () => AdminRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/tenant': typeof TenantRouteWithChildren
+  '/admin/documents': typeof AdminDocumentsRoute
   '/admin/maintenance': typeof AdminMaintenanceRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payments': typeof AdminPaymentsRoute
@@ -128,6 +135,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/auth': typeof AuthRoute
+  '/admin/documents': typeof AdminDocumentsRoute
   '/admin/maintenance': typeof AdminMaintenanceRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payments': typeof AdminPaymentsRoute
@@ -147,6 +155,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/auth': typeof AuthRoute
   '/tenant': typeof TenantRouteWithChildren
+  '/admin/documents': typeof AdminDocumentsRoute
   '/admin/maintenance': typeof AdminMaintenanceRoute
   '/admin/notifications': typeof AdminNotificationsRoute
   '/admin/payments': typeof AdminPaymentsRoute
@@ -167,6 +176,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/tenant'
+    | '/admin/documents'
     | '/admin/maintenance'
     | '/admin/notifications'
     | '/admin/payments'
@@ -183,6 +193,7 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/auth'
+    | '/admin/documents'
     | '/admin/maintenance'
     | '/admin/notifications'
     | '/admin/payments'
@@ -201,6 +212,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/auth'
     | '/tenant'
+    | '/admin/documents'
     | '/admin/maintenance'
     | '/admin/notifications'
     | '/admin/payments'
@@ -336,10 +348,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminMaintenanceRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/documents': {
+      id: '/admin/documents'
+      path: '/documents'
+      fullPath: '/admin/documents'
+      preLoaderRoute: typeof AdminDocumentsRouteImport
+      parentRoute: typeof AdminRoute
+    }
   }
 }
 
 interface AdminRouteChildren {
+  AdminDocumentsRoute: typeof AdminDocumentsRoute
   AdminMaintenanceRoute: typeof AdminMaintenanceRoute
   AdminNotificationsRoute: typeof AdminNotificationsRoute
   AdminPaymentsRoute: typeof AdminPaymentsRoute
@@ -350,6 +370,7 @@ interface AdminRouteChildren {
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
+  AdminDocumentsRoute: AdminDocumentsRoute,
   AdminMaintenanceRoute: AdminMaintenanceRoute,
   AdminNotificationsRoute: AdminNotificationsRoute,
   AdminPaymentsRoute: AdminPaymentsRoute,

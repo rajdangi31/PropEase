@@ -206,3 +206,13 @@ export const downloadDocumentFn = createServerFn({ method: "GET" })
       content: base64,
     };
   });
+
+export const getDocumentsForLandlordFn = createServerFn({ method: "GET" })
+  .handler(async () => {
+    const session = await requireAuth();
+    if (session.role !== "landlord" && session.role !== "manager") {
+      throw new Error("Only landlords and managers can view the document queue.");
+    }
+    return getDocumentsForLandlord(session.id);
+  });
+

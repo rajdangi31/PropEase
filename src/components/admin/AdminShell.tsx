@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation, useRouter, useLoaderData } from "@tanstack/react-router";
 import {
   LayoutDashboard, Building2, Users, CreditCard, Wrench, Bell, Settings,
-  Search, LogOut, ChevronDown, Menu, X,
+  Search, LogOut, ChevronDown, Menu, X, FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { Logo } from "@/components/Logo";
@@ -25,6 +25,7 @@ const adminNav: NavItem[] = [
   { to: "/admin/tenants", label: "Tenants", icon: Users },
   { to: "/admin/payments", label: "Payments", icon: CreditCard },
   { to: "/admin/maintenance", label: "Maintenance", icon: Wrench },
+  { to: "/admin/documents", label: "Documents", icon: FileText },
   { to: "/admin/notifications", label: "Notifications", icon: Bell },
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];

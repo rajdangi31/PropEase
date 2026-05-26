@@ -9,6 +9,7 @@ import {
   getMaintenanceByWorker, getAssignableWorkersForLandlord,
   createMaintenanceLog, getMaintenanceLogsByRequest,
   generateRentInvoices, getLandlordActiveLeases, createManualPayment,
+  markNotificationRead, markAllNotificationsRead, broadcastAnnouncement,
 } from "../db/queries";
 
 const SESSION_COOKIE_NAME = "propease_session";
@@ -255,6 +256,30 @@ export const getMyNotificationsFn = createServerFn({ method: "GET" })
   .handler(async () => {
     const session = await requireAuth();
     return getNotificationsByUser(session.id);
+  });
+
+export const markNotificationReadFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { id: string }) => d)
+  .handler(async (ctx: any) => {
+    const session = await requireAuth();
+    return markNotificationRead(ctx.data.id, session.id);
+  });
+
+export const markAllNotificationsReadFn = createServerFn({ method: "POST" })
+  .handler(async () => {
+    const session = await requireAuth();
+    return markAllNotificationsRead(session.id);
+  });
+
+export const broadcastAnnouncementFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { propertyId: string | null; title: string; body: string }) => d)
+  .handler(async (ctx: any) => {
+    const session = await requireAuth();
+    if (session.role !== "landlord") {
+      throw new Error("Only landlords can broadcast announcements.");
+    }
+    const { propertyId, title, body } = ctx.data;
+    return broadcastAnnouncement(session.id, propertyId, title, body);
   });
 
 // ─── Dashboard ─────────────────────────────────────────────

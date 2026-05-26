@@ -601,7 +601,12 @@ export async function getPaymentsByTenant(tenantId: string) {
 // ─── Notification Queries ──────────────────────────────────
 
 export type NotificationRow = {
-  id: string; type: string; title: string; body: string; time: string;
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  time: string;
+  isRead: boolean;
 };
 
 export async function getNotificationsByUser(userId: string): Promise<NotificationRow[]> {
@@ -609,10 +614,137 @@ export async function getNotificationsByUser(userId: string): Promise<Notificati
   const rows = await db.select().from(notificationsTable)
     .where(eq(notificationsTable.recipientId, userId))
     .orderBy(desc(notificationsTable.createdAt))
-    .limit(20);
+    .limit(30);
   return rows.map((n: any) => ({
-    id: n.id, type: n.type, title: n.title, body: n.body, time: n.createdAt ?? "",
+    id: n.id,
+    type: n.type,
+    title: n.title,
+    body: n.body,
+    time: n.createdAt ?? "",
+    isRead: n.isRead ?? false,
   }));
+}
+
+export async function createNotification(data: typeof notificationsTable.$inferInsert) {
+  const db = await getDb();
+  const [row] = await db.insert(notificationsTable).values(data).returning();
+  return row;
+}
+
+export async function markNotificationRead(id: string, userId: string) {
+  const db = await getDb();
+  const [row] = await db
+    .update(notificationsTable)
+    .set({ isRead: true })
+    .where(and(eq(notificationsTable.id, id), eq(notificationsTable.recipientId, userId)))
+    .returning();
+  return row;
+}
+
+export async function markAllNotificationsRead(userId: string) {
+  const db = await getDb();
+  return db
+    .update(notificationsTable)
+    .set({ isRead: true })
+    .where(eq(notificationsTable.recipientId, userId))
+    .returning();
+}
+
+export async function broadcastAnnouncement(
+  landlordId: string,
+  propertyId: string | null,
+  title: string,
+  body: string
+) {
+  const db = await getDb();
+  
+  // 1. Find all target tenants
+  let targetTenantIds: string[] = [];
+  
+  if (propertyId) {
+    // Tenants in a specific property
+    const unitsList = await db.select({ id: units.id }).from(units).where(eq(units.propertyId, propertyId));
+    const unitIds = unitsList.map((u: { id: string }) => u.id);
+    if (unitIds.length > 0) {
+      const activeLeases = await db
+        .select({ id: leases.id })
+        .from(leases)
+        .where(and(eq(leases.status, "active"), sql`${leases.unitId} IN (${sql.raw(unitIds.map((id: string) => `'${id}'`).join(","))})`));
+      const leaseIds = activeLeases.map((l: { id: string }) => l.id);
+      if (leaseIds.length > 0) {
+        const links = await db
+          .select({ profileId: leaseTenants.profileId })
+          .from(leaseTenants)
+          .where(sql`${leaseTenants.leaseId} IN (${sql.raw(leaseIds.map((id: string) => `'${id}'`).join(","))})`);
+        targetTenantIds = Array.from(new Set(links.map((link: { profileId: string }) => link.profileId)));
+      }
+    }
+  } else {
+    // All tenants under this landlord
+    const props = await db.select({ id: properties.id }).from(properties).where(eq(properties.landlordId, landlordId));
+    const propIds = props.map((p: { id: string }) => p.id);
+    if (propIds.length > 0) {
+      const unitsList = await db
+        .select({ id: units.id })
+        .from(units)
+        .where(sql`${units.propertyId} IN (${sql.raw(propIds.map((id: string) => `'${id}'`).join(","))})`);
+      const unitIds = unitsList.map((u: { id: string }) => u.id);
+      if (unitIds.length > 0) {
+        const activeLeases = await db
+          .select({ id: leases.id })
+          .from(leases)
+          .where(and(eq(leases.status, "active"), sql`${leases.unitId} IN (${sql.raw(unitIds.map((id: string) => `'${id}'`).join(","))})`));
+        const leaseIds = activeLeases.map((l: { id: string }) => l.id);
+        if (leaseIds.length > 0) {
+          const links = await db
+            .select({ profileId: leaseTenants.profileId })
+            .from(leaseTenants)
+            .where(sql`${leaseTenants.leaseId} IN (${sql.raw(leaseIds.map((id: string) => `'${id}'`).join(","))})`);
+          targetTenantIds = Array.from(new Set(links.map((link: { profileId: string }) => link.profileId)));
+        }
+      }
+    }
+  }
+
+  // 2. Insert notification records & dispatch emails
+  const notificationsCreated = [];
+  const { sendEmail } = await import("../lib/email");
+  
+  for (const tenantId of targetTenantIds) {
+    const [tenant] = await db.select().from(profiles).where(eq(profiles.id, tenantId)).limit(1);
+    
+    // Create database notification
+    const [row] = await db.insert(notificationsTable).values({
+      id: crypto.randomUUID(),
+      recipientId: tenantId,
+      type: "announcement",
+      title,
+      body,
+      isRead: false,
+    }).returning();
+    
+    notificationsCreated.push(row);
+    
+    // Send email notification
+    if (tenant && tenant.email) {
+      await sendEmail({
+        to: tenant.email,
+        subject: `[PropEase Announcement] ${title}`,
+        text: `Dear ${tenant.firstName},\n\nYour landlord has posted a new announcement:\n\n---\n${title}\n\n${body}\n---\n\nBest regards,\nPropEase Team`,
+        html: `<h3>Dear ${tenant.firstName},</h3><p>Your landlord has posted a new announcement:</p><blockquote style="border-left: 3px solid #ccc; padding-left: 10px; margin-left: 10px;"><strong>${title}</strong><br/><br/>${body.replace(/\n/g, "<br/>")}</blockquote><p>Best regards,<br/>PropEase Team</p>`,
+      });
+    }
+  }
+
+  // 3. Log activity
+  await db.insert(activityLogs).values({
+    id: crypto.randomUUID(),
+    actorId: landlordId,
+    actionType: "ANNOUNCEMENT_BROADCAST",
+    description: `Broadcasted announcement: "${title}" to ${targetTenantIds.length} tenants.`,
+  });
+
+  return notificationsCreated;
 }
 
 // ─── Dashboard Queries ─────────────────────────────────────
