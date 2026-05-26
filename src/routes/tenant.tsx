@@ -1,14 +1,16 @@
-import { createFileRoute, Outlet } from "@tanstack/react-router";
-import { AppShell } from "@/components/AppShell";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { TenantShell } from "@/components/tenant/TenantShell";
+import { getMeFn } from "@/lib/auth-server";
+import { getMyNotificationsFn } from "@/lib/data-server";
 
 export const Route = createFileRoute("/tenant")({
-  component: TenantLayout,
+  loader: async () => {
+    const user = await getMeFn();
+    if (!user) {
+      throw redirect({ to: "/auth" });
+    }
+    const notifications = await getMyNotificationsFn();
+    return { user, notifications };
+  },
+  component: TenantShell,
 });
-
-function TenantLayout() {
-  return (
-    <AppShell role="tenant">
-      <Outlet />
-    </AppShell>
-  );
-}

@@ -1,27 +1,34 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { notifications } from "@/lib/mock-data";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { getMyNotificationsFn } from "@/lib/data-server";
 
 export const Route = createFileRoute("/tenant/notifications")({
+  loader: () => getMyNotificationsFn(),
   component: TenantNotifications,
 });
 
 function TenantNotifications() {
+  const notifications = Route.useLoaderData();
+
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       <Card className="lg:col-span-2">
         <CardHeader><CardTitle className="text-base">Inbox</CardTitle></CardHeader>
         <CardContent className="space-y-3">
-          {notifications.map((n) => (
-            <div key={n.id} className="rounded-lg border border-border p-3">
-              <div className="flex items-start justify-between">
-                <p className="text-sm font-medium">{n.title}</p>
-                <span className="text-[10px] text-muted-foreground">{n.time}</span>
+          {notifications.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">No notifications yet</p>
+          ) : (
+            notifications.map((n) => (
+              <div key={n.id} className="rounded-lg border border-border p-3">
+                <div className="flex items-start justify-between">
+                  <p className="text-sm font-medium">{n.title}</p>
+                  <span className="text-[10px] text-muted-foreground">{n.time}</span>
+                </div>
+                <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
               </div>
-              <p className="mt-0.5 text-xs text-muted-foreground">{n.body}</p>
-            </div>
-          ))}
+            ))
+          )}
         </CardContent>
       </Card>
       <Card>

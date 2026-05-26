@@ -7,26 +7,112 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { signInFn, requestSignUpOtpFn, verifyOtpAndSignUpFn } from "@/lib/auth-server";
+import { getInviteDetailsFn } from "@/lib/property-server";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search: Record<string, unknown>): { invite?: string } => ({
+    invite: search.invite as string | undefined,
+  }),
+  loader: async ({ deps }: { deps: { invite?: string } }) => {
+    if (deps.invite) {
+      try {
+        const details = await getInviteDetailsFn({ data: { inviteToken: deps.invite } });
+        return { inviteDetails: details };
+      } catch (err: any) {
+        return { inviteError: err.message };
+      }
+    }
+    return { inviteDetails: null };
+  },
+  loaderDeps: ({ search: { invite } }) => ({ invite }),
   component: AuthPage,
 });
 
 const roles = [
-  { id: "admin", label: "Property Owner", desc: "Full access to all features", icon: Building2, to: "/admin" },
+  { id: "landlord", label: "Property Owner", desc: "Full access to all features", icon: Building2, to: "/admin" },
   { id: "manager", label: "Manager", desc: "All except billing & settings", icon: ShieldCheck, to: "/admin" },
-  { id: "staff", label: "Maintenance Staff", desc: "Assigned requests only", icon: Wrench, to: "/admin/maintenance" },
+  { id: "maintenance", label: "Maintenance Staff", desc: "Assigned requests only", icon: Wrench, to: "/admin/maintenance" },
   { id: "tenant", label: "Tenant", desc: "Pay rent, submit requests", icon: User, to: "/tenant" },
 ] as const;
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [role, setRole] = useState<(typeof roles)[number]["id"]>("admin");
+  const { inviteDetails, inviteError } = Route.useLoaderData() as any;
+  const search = Route.useSearch() as { invite?: string };
+  const inviteToken = search.invite;
 
-  const submit = (e: React.FormEvent) => {
+  // If invited, force role to tenant (or maintenance if inviteType is maintenance), otherwise remove tenant from roles array
+  const displayRoles = inviteDetails 
+    ? (inviteDetails.invite.inviteType === "maintenance" ? roles.filter(r => r.id === "maintenance") : roles.filter(r => r.id === "tenant")) 
+    : roles.filter(r => r.id !== "tenant");
+  const defaultRole = inviteDetails 
+    ? (inviteDetails.invite.inviteType === "maintenance" ? "maintenance" : "tenant") 
+    : "landlord";
+
+  const [role, setRole] = useState<(typeof roles)[number]["id"]>(defaultRole);
+  const [email, setEmail] = useState(inviteDetails?.invite?.email || "");
+  const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+  const [error, setError] = useState(inviteError || "");
+  const [isLoading, setIsLoading] = useState(false);
+  
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [otp, setOtp] = useState("");
+
+  const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    const target = roles.find((r) => r.id === role)!;
-    navigate({ to: target.to });
+    setError("");
+    setIsLoading(true);
+    try {
+      const result = await signInFn({ data: { email, password } });
+      // Route based on the actual role from the database, not the picker
+      const dbRole = result.profile.role;
+      const target = dbRole === "tenant" ? "/tenant" : "/admin";
+      navigate({ to: target });
+    } catch (err: any) {
+      setError(err.message || "Invalid credentials");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+
+    if (!email.toLowerCase().endsWith("@gmail.com")) {
+      setError("Currently, we only accept @gmail.com email addresses.");
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await requestSignUpOtpFn({ data: { email, password, firstName, lastName, role, inviteToken } });
+      setIsVerifying(true);
+    } catch (err: any) {
+      setError(err.message || "Error creating account");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setIsLoading(true);
+    try {
+      const result = await verifyOtpAndSignUpFn({ data: { email, code: otp } });
+      const dbRole = result.profile.role;
+      const target = dbRole === "tenant" ? "/tenant" : "/admin";
+      navigate({ to: target });
+    } catch (err: any) {
+      setError(err.message || "Invalid verification code");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -63,59 +149,126 @@ function AuthPage() {
           <ThemeToggle />
         </header>
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 pb-12">
-          <h1 className="text-2xl font-bold tracking-tight">Welcome to PropEase</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">Sign in or create an account to continue.</p>
+          {isVerifying ? (
+            <div className="space-y-6">
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">Verify your email</h1>
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  We've sent a 6-digit verification code to <strong className="text-foreground">{email}</strong>.
+                </p>
+                <p className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-600 dark:text-amber-500 font-medium">
+                  Check your terminal console where the npm dev server is running to find the code.
+                </p>
+              </div>
 
-          <Tabs defaultValue="signin" className="mt-6">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign in</TabsTrigger>
-              <TabsTrigger value="signup">Sign up</TabsTrigger>
-            </TabsList>
+              <form onSubmit={handleVerifyOtp} className="space-y-4">
+                {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+                <div className="space-y-2 flex flex-col items-center">
+                  <Label htmlFor="otp" className="self-start">Verification Code</Label>
+                  <InputOTP
+                    maxLength={6}
+                    value={otp}
+                    onChange={(val) => setOtp(val)}
+                  >
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} className="h-12 w-12 text-lg" />
+                      <InputOTPSlot index={1} className="h-12 w-12 text-lg" />
+                      <InputOTPSlot index={2} className="h-12 w-12 text-lg" />
+                      <InputOTPSlot index={3} className="h-12 w-12 text-lg" />
+                      <InputOTPSlot index={4} className="h-12 w-12 text-lg" />
+                      <InputOTPSlot index={5} className="h-12 w-12 text-lg" />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
 
-            <TabsContent value="signin" className="mt-6">
-              <form className="space-y-4" onSubmit={submit}>
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="you@example.com" defaultValue="elena@propease.app" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" defaultValue="demopassword" />
-                </div>
-                <RolePicker role={role} setRole={setRole} />
-                <Button type="submit" className="h-11 w-full text-base">Sign in</Button>
+                <Button type="submit" className="h-11 w-full text-base" disabled={isLoading || otp.length < 6}>
+                  {isLoading ? "Verifying..." : "Verify & Create Account"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full text-sm text-muted-foreground"
+                  onClick={() => {
+                    setIsVerifying(false);
+                    setOtp("");
+                    setError("");
+                  }}
+                >
+                  ← Back to Sign Up
+                </Button>
               </form>
-            </TabsContent>
+            </div>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold tracking-tight">Welcome to PropEase</h1>
+              <p className="mt-1.5 text-sm text-muted-foreground">Sign in or create an account to continue.</p>
 
-            <TabsContent value="signup" className="mt-6">
-              <form className="space-y-4" onSubmit={submit}>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="fn">First name</Label>
-                    <Input id="fn" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="ln">Last name</Label>
-                    <Input id="ln" />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="email2">Email</Label>
-                  <Input id="email2" type="email" placeholder="you@example.com" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="password2">Password</Label>
-                  <Input id="password2" type="password" />
-                </div>
-                <RolePicker role={role} setRole={setRole} />
-                <Button type="submit" className="h-11 w-full text-base">Create account</Button>
-              </form>
-            </TabsContent>
-          </Tabs>
+              <Tabs defaultValue="signin" className="mt-6">
+                <TabsList className="grid w-full grid-cols-2">
+                  <TabsTrigger value="signin">Sign in</TabsTrigger>
+                  <TabsTrigger value="signup">Sign up</TabsTrigger>
+                </TabsList>
 
-          <p className="mt-6 text-center text-xs text-muted-foreground">
-            This is a demo — any credentials work.
-          </p>
+                <TabsContent value="signin" className="mt-6">
+                  <form className="space-y-4" onSubmit={handleSignIn}>
+                    {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email">Email</Label>
+                      <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="password">Password</Label>
+                      <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    </div>
+                    <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
+                      {isLoading ? "Signing in..." : "Sign in"}
+                    </Button>
+                  </form>
+                </TabsContent>
+
+                <TabsContent value="signup" className="mt-6">
+                  <form className="space-y-4" onSubmit={handleSignUp}>
+                    {inviteDetails && (
+                      <div className="rounded-md border border-accent/20 bg-accent/5 p-4">
+                        <h3 className="text-sm font-semibold text-accent">You've been invited!</h3>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {inviteDetails.invite.inviteType === "maintenance" ? (
+                            <span>{inviteDetails.landlordName} invited you to join <strong>{inviteDetails.propertyName}</strong> as a Maintenance Worker.</span>
+                          ) : (
+                            <span>{inviteDetails.landlordName} invited you to join <strong>{inviteDetails.propertyName}</strong> · Apt {inviteDetails.unitNumber}.</span>
+                          )}
+                        </p>
+                      </div>
+                    )}
+                    {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="fn">First name</Label>
+                        <Input id="fn" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="ln">Last name</Label>
+                        <Input id="ln" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="email2">Email</Label>
+                      <Input id="email2" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={!!inviteDetails?.invite?.email} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="password2">Password</Label>
+                      <Input id="password2" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                    </div>
+                    <RolePicker role={role} setRole={setRole} availableRoles={displayRoles} />
+                    <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
+                      {isLoading ? "Creating account..." : "Create account"}
+                    </Button>
+                  </form>
+                </TabsContent>
+              </Tabs>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -123,13 +276,14 @@ function AuthPage() {
 }
 
 function RolePicker({
-  role, setRole,
-}: { role: string; setRole: (id: any) => void }) {
+  role, setRole, availableRoles,
+}: { role: string; setRole: (id: any) => void; availableRoles: typeof roles[number][] }) {
+  if (availableRoles.length === 1) return null; // Hide if locked to one role
   return (
     <div className="space-y-2">
       <Label>I am a...</Label>
       <div className="grid grid-cols-2 gap-2">
-        {roles.map((r) => {
+        {availableRoles.map((r) => {
           const Icon = r.icon;
           const active = role === r.id;
           return (

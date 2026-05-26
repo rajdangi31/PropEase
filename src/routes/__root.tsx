@@ -1,6 +1,7 @@
 import { Outlet, Link, createRootRoute, HeadContent, Scripts } from "@tanstack/react-router";
 import appCss from "../styles.css?url";
 import { ThemeProvider } from "@/lib/theme";
+import { Toaster } from "@/components/ui/sonner";
 
 function NotFoundComponent() {
   return (
@@ -66,6 +67,7 @@ function RootComponent() {
   return (
     <ThemeProvider>
       <Outlet />
+      <Toaster />
     </ThemeProvider>
   );
 }
