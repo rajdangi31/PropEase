@@ -10,6 +10,7 @@ import {
   createMaintenanceLog, getMaintenanceLogsByRequest,
   generateRentInvoices, getLandlordActiveLeases, createManualPayment,
   markNotificationRead, markAllNotificationsRead, broadcastAnnouncement,
+  terminateLease, renewLease,
 } from "../db/queries";
 
 const SESSION_COOKIE_NAME = "propease_session";
@@ -446,4 +447,25 @@ export const createManualPaymentFn = createServerFn({ method: "POST" })
     const session = await requireAuth();
     if (session.role !== "landlord") throw new Error("Only landlords can log manual payments.");
     return createManualPayment(session.id, ctx.data);
+  });
+
+export const terminateLeaseFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { leaseId: string }) => d)
+  .handler(async (ctx: any) => {
+    const session = await requireAuth();
+    if (session.role !== "landlord" && session.role !== "manager") {
+      throw new Error("Only landlords and managers can terminate leases.");
+    }
+    return terminateLease(session.id, ctx.data.leaseId);
+  });
+
+export const renewLeaseFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { leaseId: string; newEndDate: string; newRent: number }) => d)
+  .handler(async (ctx: any) => {
+    const session = await requireAuth();
+    if (session.role !== "landlord" && session.role !== "manager") {
+      throw new Error("Only landlords and managers can renew leases.");
+    }
+    const { leaseId, newEndDate, newRent } = ctx.data;
+    return renewLease(session.id, leaseId, newEndDate, newRent * 100); // Convert dollars to cents
   });

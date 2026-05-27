@@ -244,6 +244,7 @@ export async function createUnit(data: InsertUnit) {
 export type TenantRow = {
   id: string; name: string; email: string; phone: string | null;
   unit: string; leaseEnd: string; rent: number; status: string;
+  leaseId: string;
 };
 
 export async function getTenantsByLandlord(landlordId: string): Promise<TenantRow[]> {
@@ -274,6 +275,7 @@ export async function getTenantsByLandlord(landlordId: string): Promise<TenantRo
               leaseEnd: lease.endDate,
               rent: lease.monthlyRent / 100,
               status: "Active",
+              leaseId: lease.id,
             });
           }
         }
@@ -1630,4 +1632,123 @@ PropEase Billing`;
   }
 
   return payment;
+}
+
+export async function terminateLease(landlordId: string, leaseId: string) {
+  const db = await getDb();
+  const { eq, and } = await import("drizzle-orm");
+
+  // 1. Verify landlord ownership
+  const [lease] = await db.select().from(leases).where(eq(leases.id, leaseId)).limit(1);
+  if (!lease) throw new Error("Lease not found");
+  const [unit] = await db.select().from(units).where(eq(units.id, lease.unitId)).limit(1);
+  if (!unit) throw new Error("Unit not found");
+  const [property] = await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+  if (!property || property.landlordId !== landlordId) {
+    throw new Error("Unauthorized to terminate this lease.");
+  }
+
+  // 2. Update lease status
+  const [updatedLease] = await db
+    .update(leases)
+    .set({ status: "terminated", updatedAt: sql`CURRENT_TIMESTAMP` })
+    .where(eq(leases.id, leaseId))
+    .returning();
+
+  // 3. Set unit back to vacant
+  await db
+    .update(units)
+    .set({ status: "vacant", updatedAt: sql`CURRENT_TIMESTAMP` })
+    .where(eq(units.id, lease.unitId));
+
+  // 4. Log activity
+  const [tenantLink] = await db.select().from(leaseTenants).where(eq(leaseTenants.leaseId, leaseId)).limit(1);
+  let tenantName = "Tenant";
+  if (tenantLink) {
+    const [profile] = await db.select().from(profiles).where(eq(profiles.id, tenantLink.profileId)).limit(1);
+    if (profile) tenantName = `${profile.firstName} ${profile.lastName}`;
+  }
+
+  await db.insert(activityLogs).values({
+    id: crypto.randomUUID(),
+    actorId: landlordId,
+    actionType: "LEASE_TERMINATED",
+    description: `Lease terminated early for ${tenantName} (Apt ${unit.unitNumber}).`,
+  });
+
+  return updatedLease;
+}
+
+export async function renewLease(
+  landlordId: string,
+  leaseId: string,
+  newEndDate: string,
+  newMonthlyRentCents: number
+) {
+  const db = await getDb();
+  const { eq } = await import("drizzle-orm");
+
+  // 1. Verify landlord ownership
+  const [oldLease] = await db.select().from(leases).where(eq(leases.id, leaseId)).limit(1);
+  if (!oldLease) throw new Error("Lease not found");
+  const [unit] = await db.select().from(units).where(eq(units.id, oldLease.unitId)).limit(1);
+  if (!unit) throw new Error("Unit not found");
+  const [property] = await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+  if (!property || property.landlordId !== landlordId) {
+    throw new Error("Unauthorized to renew this lease.");
+  }
+
+  // 2. Calculate new start date (day after old lease ends)
+  const oldEnd = new Date(oldLease.endDate);
+  const nextDay = new Date(oldEnd);
+  nextDay.setDate(nextDay.getDate() + 1);
+  const newStartDateStr = nextDay.toISOString().split("T")[0];
+
+  // 3. Mark old lease as expired
+  await db
+    .update(leases)
+    .set({ status: "expired", updatedAt: sql`CURRENT_TIMESTAMP` })
+    .where(eq(leases.id, leaseId));
+
+  // 4. Create new lease
+  const newLeaseId = crypto.randomUUID();
+  const [newLease] = await db
+    .insert(leases)
+    .values({
+      id: newLeaseId,
+      unitId: oldLease.unitId,
+      startDate: newStartDateStr,
+      endDate: newEndDate,
+      monthlyRent: newMonthlyRentCents,
+      securityDeposit: oldLease.securityDeposit, // Carry over deposit
+      status: "active",
+    })
+    .returning();
+
+  // 5. Copy tenants to new lease
+  const oldLinks = await db.select().from(leaseTenants).where(eq(leaseTenants.leaseId, leaseId));
+  let primaryTenantName = "Tenant";
+  
+  for (const link of oldLinks) {
+    await db.insert(leaseTenants).values({
+      leaseId: newLeaseId,
+      profileId: link.profileId,
+      isPrimary: link.isPrimary,
+    });
+
+    if (link.isPrimary) {
+      const [profile] = await db.select().from(profiles).where(eq(profiles.id, link.profileId)).limit(1);
+      if (profile) primaryTenantName = `${profile.firstName} ${profile.lastName}`;
+    }
+  }
+
+  // 6. Log activity
+  await db.insert(activityLogs).values({
+    id: crypto.randomUUID(),
+    actorId: landlordId,
+    actionType: "LEASE_RENEWED",
+    description: `Lease renewed for ${primaryTenantName} (Apt ${unit.unitNumber}) until ${newEndDate} at $${(newMonthlyRentCents / 100).toLocaleString()}/mo.`,
+  });
+
+  return newLease;
 }
