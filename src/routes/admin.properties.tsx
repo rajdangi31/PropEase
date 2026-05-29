@@ -1,5 +1,6 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
+import { toast } from "sonner";
 import { Building2, MapPin, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,11 @@ import {
   getUnitsFn,
   createPropertyFn,
   createUnitFn,
+  updateUnitFn,
 } from "@/lib/property-server";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import type { PropertyWithCounts, UnitWithTenant } from "@/db/queries";
 
 export const Route = createFileRoute("/admin/properties")({
@@ -64,6 +69,15 @@ function PropertiesPage() {
   const [unitBeds, setUnitBeds] = useState("");
   const [unitBaths, setUnitBaths] = useState("");
 
+  // Edit Unit form state
+  const [showEditUnit, setShowEditUnit] = useState(false);
+  const [editUnitNumber, setEditUnitNumber] = useState("");
+  const [editUnitRent, setEditUnitRent] = useState("");
+  const [editUnitSqft, setEditUnitSqft] = useState("");
+  const [editUnitBeds, setEditUnitBeds] = useState("");
+  const [editUnitBaths, setEditUnitBaths] = useState("");
+  const [editUnitStatus, setEditUnitStatus] = useState<UnitStatus>("vacant");
+
   const visibleUnits = unitsMap[activeProperty] ?? [];
   const unit = openUnit ? visibleUnits.find((u) => u.id === openUnit) : null;
 
@@ -83,7 +97,11 @@ function PropertiesPage() {
       setPropName("");
       setPropAddress("");
       setShowAddProperty(false);
+      toast.success("Property created successfully.");
       router.invalidate(); // Reload route data
+    } catch (err: any) {
+      console.error("Failed to create property:", err);
+      toast.error(err.message || "Failed to create property.");
     } finally {
       setIsLoading(false);
     }
@@ -110,7 +128,59 @@ function PropertiesPage() {
       setUnitBeds("");
       setUnitBaths("");
       setShowAddUnit(false);
+      toast.success("Unit created successfully.");
+
+      // Re-fetch and update local units state for immediate UI update
+      const updatedUnits = await getUnitsFn({ data: { propertyId: activeProperty } });
+      setUnitsMap((prev) => ({ ...prev, [activeProperty]: updatedUnits }));
+
       router.invalidate(); // Reload route data
+    } catch (err: any) {
+      console.error("Failed to create unit:", err);
+      toast.error(err.message || "Failed to create unit.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenEdit = () => {
+    if (!unit) return;
+    setEditUnitNumber(unit.number);
+    setEditUnitRent(unit.rent.toString());
+    setEditUnitSqft(unit.sqft ? unit.sqft.toString() : "");
+    setEditUnitBeds(unit.beds ? unit.beds.toString() : "");
+    setEditUnitBaths(unit.baths ? unit.baths.toString() : "");
+    setEditUnitStatus(unit.status);
+    setShowEditUnit(true);
+  };
+
+  const handleSaveEditUnit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!unit || !activeProperty) return;
+    setIsLoading(true);
+    try {
+      await updateUnitFn({
+        data: {
+          id: unit.id,
+          unitNumber: editUnitNumber,
+          rent: parseFloat(editUnitRent) || 0,
+          sqft: parseInt(editUnitSqft) || undefined,
+          beds: parseInt(editUnitBeds) || undefined,
+          baths: parseInt(editUnitBaths) || undefined,
+          status: editUnitStatus,
+        },
+      });
+      setShowEditUnit(false);
+      toast.success("Unit details updated successfully.");
+
+      // Re-fetch and update local units state for immediate UI update
+      const updatedUnits = await getUnitsFn({ data: { propertyId: activeProperty } });
+      setUnitsMap((prev) => ({ ...prev, [activeProperty]: updatedUnits }));
+
+      router.invalidate(); // Reload route data
+    } catch (err: any) {
+      console.error("Failed to save unit:", err);
+      toast.error(err.message || "Failed to save unit details.");
     } finally {
       setIsLoading(false);
     }
@@ -255,7 +325,7 @@ function PropertiesPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline">Edit unit</Button>
+                <Button variant="outline" onClick={handleOpenEdit}>Edit unit</Button>
                 {unit.tenant && <Button>View tenant</Button>}
               </DialogFooter>
             </>
@@ -312,6 +382,64 @@ function PropertiesPage() {
             <DialogFooter className="mt-6">
               <Button type="button" variant="outline" onClick={() => setShowAddUnit(false)}>Cancel</Button>
               <Button type="submit" disabled={isLoading}>{isLoading ? "Creating..." : "Create Unit"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Unit dialog */}
+      <Dialog open={showEditUnit} onOpenChange={setShowEditUnit}>
+        <DialogContent className="sm:max-w-md">
+          <form onSubmit={handleSaveEditUnit}>
+            <DialogHeader>
+              <DialogTitle>Edit Unit</DialogTitle>
+              <DialogDescription>
+                Modify unit details and status.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="mt-4 space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-unit-number">Unit number</Label>
+                <Input id="edit-unit-number" placeholder="e.g. 101, 2A" value={editUnitNumber} onChange={(e) => setEditUnitNumber(e.target.value)} required />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-unit-rent">Monthly rent ($)</Label>
+                <Input id="edit-unit-rent" type="number" step="0.01" placeholder="2400" value={editUnitRent} onChange={(e) => setEditUnitRent(e.target.value)} required />
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-unit-sqft">Sqft</Label>
+                  <Input id="edit-unit-sqft" type="number" placeholder="800" value={editUnitSqft} onChange={(e) => setEditUnitSqft(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-unit-beds">Beds</Label>
+                  <Input id="edit-unit-beds" type="number" placeholder="2" value={editUnitBeds} onChange={(e) => setEditUnitBeds(e.target.value)} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="edit-unit-baths">Baths</Label>
+                  <Input id="edit-unit-baths" type="number" placeholder="1" value={editUnitBaths} onChange={(e) => setEditUnitBaths(e.target.value)} />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="edit-unit-status">Status</Label>
+                <Select value={editUnitStatus} onValueChange={(val: any) => setEditUnitStatus(val)}>
+                  <SelectTrigger id="edit-unit-status">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="vacant">Vacant</SelectItem>
+                    <SelectItem value="occupied" disabled={unit?.tenant ? false : true}>Occupied</SelectItem>
+                    <SelectItem value="maintenance">Maintenance</SelectItem>
+                  </SelectContent>
+                </Select>
+                {!unit?.tenant && editUnitStatus === "occupied" && (
+                  <p className="text-[10px] text-muted-foreground mt-1">To mark as occupied, assign a tenant by sending them an invitation.</p>
+                )}
+              </div>
+            </div>
+            <DialogFooter className="mt-6">
+              <Button type="button" variant="outline" onClick={() => setShowEditUnit(false)}>Cancel</Button>
+              <Button type="submit" disabled={isLoading}>{isLoading ? "Saving..." : "Save Changes"}</Button>
             </DialogFooter>
           </form>
         </DialogContent>

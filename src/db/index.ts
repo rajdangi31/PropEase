@@ -16,17 +16,47 @@ export async function getDb() {
     return devDb;
   }
 
-  // In a Vite environment with the Cloudflare plugin, or via wrangler in Prod, 
-  // bindings are usually exposed on process.env or globalThis
-  const env = (typeof process !== "undefined" ? process.env : (globalThis as any)) as any;
-  const d1 = env?.DB as any | undefined;
+  // Retrieve Cloudflare env bindings from the custom server entry context or fallbacks
+  let env: any = {};
+  try {
+    const { getCloudflareEnv } = await import("../lib/cloudflare-env");
+    env = getCloudflareEnv();
+  } catch (error) {
+    // Ignore error if server entry cannot be imported
+  }
+
+  // Fallback to H3 event storage if server context doesn't contain DB
+  if (!env.DB) {
+    try {
+      const storageKey = Symbol.for("tanstack-start:event-storage");
+      const eventStorage = (globalThis as any)[storageKey];
+      const event = eventStorage?.getStore()?.h3Event;
+      if (event) {
+        env = event.context?.cloudflare?.env || 
+              event.node?.req?.runtime?.cloudflare?.env ||
+              event.node?.req?.__cloudflare_env || 
+              {};
+      }
+    } catch (error) {
+      // Ignore errors if context is accessed outside request lifecycle
+    }
+  }
+
+  // Fallback to process.env or globalThis if event context is not available
+  if (!env.DB) {
+    const globalEnv = (typeof process !== "undefined" ? process.env : (globalThis as any)) as any;
+    env = globalEnv || {};
+  }
+
+  const d1 = env.DB as any | undefined;
   
   if (!d1) {
     throw new Error(
-      "D1 Database binding 'DB' not found in process.env or globalThis. " +
+      "D1 Database binding 'DB' not found in server context, Vinxi event context, process.env, or globalThis. " +
       "Make sure you are running via wrangler or the cloudflare vite plugin."
     );
   }
 
   return drizzle(d1, { schema });
 }
+

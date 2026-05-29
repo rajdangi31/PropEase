@@ -42,7 +42,11 @@ function TenantDashboard() {
             <div>
               <p className="text-sm text-primary-foreground/70">Welcome back</p>
               <h2 className="mt-1 text-2xl font-bold">{dashboard.unitLabel}</h2>
-              <p className="mt-1 text-sm text-primary-foreground/70">Lease ends {dashboard.leaseEnd}</p>
+              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-primary-foreground/80">
+                <span>Lease ends {dashboard.leaseEnd}</span>
+                <span>•</span>
+                <span>Monthly Rent: ${dashboard.rent.toLocaleString()}</span>
+              </div>
             </div>
             <div className="rounded-xl bg-white/10 p-4 backdrop-blur">
               <p className="text-xs uppercase tracking-wider text-primary-foreground/70">Next rent due</p>

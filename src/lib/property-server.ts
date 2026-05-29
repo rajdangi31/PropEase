@@ -6,6 +6,7 @@ import {
   createProperty as dbCreateProperty,
   getUnitsByProperty,
   createUnit as dbCreateUnit,
+  updateUnit as dbUpdateUnit,
   createInvite,
   getInvite,
   type PropertyWithCounts,
@@ -108,6 +109,40 @@ export const createUnitFn = createServerFn({ method: "POST" })
       beds: data.beds ?? null,
       baths: data.baths ?? null,
       status: "vacant",
+    });
+
+    return unit;
+  });
+
+/**
+ * Update an existing unit.
+ */
+export const updateUnitFn = createServerFn({ method: "POST" })
+  .inputValidator((d: {
+    id: string;
+    unitNumber?: string;
+    rent?: number;
+    sqft?: number;
+    beds?: number;
+    baths?: number;
+    status?: "occupied" | "vacant" | "maintenance";
+  }) => d)
+  .handler(async (ctx: any) => {
+    const data = ctx.data;
+    const session = await requireAuth();
+
+    // Verify session/role (e.g. only landlords/managers can edit unit details)
+    if (session.role !== "landlord" && session.role !== "manager" && session.role !== "admin") {
+      throw new Error("Only landlords or managers can edit unit details.");
+    }
+
+    const unit = await dbUpdateUnit(data.id, {
+      unitNumber: data.unitNumber,
+      currentMarketRent: data.rent !== undefined ? Math.round(data.rent * 100) : undefined,
+      sqft: data.sqft !== undefined ? data.sqft : undefined,
+      beds: data.beds !== undefined ? data.beds : undefined,
+      baths: data.baths !== undefined ? data.baths : undefined,
+      status: data.status,
     });
 
     return unit;
@@ -235,10 +270,21 @@ export const getInviteDetailsFn = createServerFn({ method: "GET" })
       ? await db.select({ number: units.unitNumber }).from(units).where(eq(units.id, invite.unitId)).limit(1)
       : [null];
 
+    let emailExists = false;
+    if (invite.email) {
+      const [existingUser] = await db
+        .select({ id: profiles.id })
+        .from(profiles)
+        .where(eq(profiles.email, invite.email.toLowerCase()))
+        .limit(1);
+      emailExists = !!existingUser;
+    }
+
     return {
       invite,
       landlordName: landlord?.name ?? "a landlord",
       propertyName: property?.name ?? "a property",
       unitNumber: unit?.number ?? "a unit",
+      emailExists,
     };
   });

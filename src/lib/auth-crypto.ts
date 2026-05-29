@@ -1,12 +1,51 @@
-/**
- * Edge-native secure cryptography for Password Hashing and JWT Session Tokens.
- * Uses the Web Crypto API, which is highly performant and fully supported by Cloudflare Workers.
- */
-
 // We use PBKDF2 with HMAC-SHA-256 and 100,000 iterations for password hashing
 const PBKDF2_ITERATIONS = 100000;
 const SALT_LENGTH = 16;
-const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-key-replace-in-production";
+
+/**
+ * Retrieves the JWT Secret dynamically based on the execution context.
+ */
+async function getJwtSecret(): Promise<string> {
+  if (import.meta.env?.DEV) {
+    try {
+      const { getPlatformProxy } = await import("wrangler");
+      const { env } = await getPlatformProxy();
+      if (env.JWT_SECRET) return env.JWT_SECRET as string;
+    } catch {
+      // Fallback if proxy retrieval fails
+    }
+    return "your-super-secret-key-replace-in-production";
+  }
+
+  // Retrieve Cloudflare env bindings from the custom server entry context or fallbacks
+  let env: any = {};
+  try {
+    const { getCloudflareEnv } = await import("./cloudflare-env");
+    env = getCloudflareEnv();
+  } catch (error) {
+    // Ignore error if server entry cannot be imported
+  }
+
+  // Fallback to H3 event storage if server context doesn't contain JWT_SECRET
+  if (!env.JWT_SECRET) {
+    try {
+      const storageKey = Symbol.for("tanstack-start:event-storage");
+      const eventStorage = (globalThis as any)[storageKey];
+      const event = eventStorage?.getStore()?.h3Event;
+      if (event) {
+        env = event.context?.cloudflare?.env || 
+              event.node?.req?.runtime?.cloudflare?.env ||
+              event.node?.req?.__cloudflare_env || 
+              {};
+      }
+    } catch (error) {
+      // Ignore error if outside request lifecycle
+    }
+  }
+
+  const secret = env.JWT_SECRET || (typeof process !== "undefined" ? process.env.JWT_SECRET : (globalThis as any)?.JWT_SECRET);
+  return secret || "your-super-secret-key-replace-in-production";
+}
 
 /**
  * Generates a cryptographically secure random salt
@@ -84,10 +123,11 @@ function base64urlEncode(buf: ArrayBuffer | Uint8Array | string): string {
 }
 
 async function getJwtKey(): Promise<CryptoKey> {
+  const secret = await getJwtSecret();
   const enc = new TextEncoder();
   return await crypto.subtle.importKey(
     "raw",
-    enc.encode(JWT_SECRET),
+    enc.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign", "verify"]

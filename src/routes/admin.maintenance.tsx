@@ -288,6 +288,11 @@ function MaintenancePage() {
       return;
     }
 
+    if (status !== "pending" && !item.assignedWorkerId) {
+      toast.error("Cannot move maintenance request status: No worker is assigned.");
+      return;
+    }
+
     if (status === "resolved" && (user.role === "maintenance" || user.role === "service")) {
       toast.error("Only landlords and managers can finalize resolved requests.");
       return;

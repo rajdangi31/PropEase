@@ -19,6 +19,7 @@ import { Route as TenantPayRouteImport } from './routes/tenant.pay'
 import { Route as TenantNotificationsRouteImport } from './routes/tenant.notifications'
 import { Route as TenantMaintenanceRouteImport } from './routes/tenant.maintenance'
 import { Route as TenantDocumentsRouteImport } from './routes/tenant.documents'
+import { Route as AuthOauthCallbackRouteImport } from './routes/auth.oauth-callback'
 import { Route as AdminTenantsRouteImport } from './routes/admin.tenants'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminPropertiesRouteImport } from './routes/admin.properties'
@@ -77,6 +78,11 @@ const TenantDocumentsRoute = TenantDocumentsRouteImport.update({
   path: '/documents',
   getParentRoute: () => TenantRoute,
 } as any)
+const AuthOauthCallbackRoute = AuthOauthCallbackRouteImport.update({
+  id: '/oauth-callback',
+  path: '/oauth-callback',
+  getParentRoute: () => AuthRoute,
+} as any)
 const AdminTenantsRoute = AdminTenantsRouteImport.update({
   id: '/tenants',
   path: '/tenants',
@@ -116,7 +122,7 @@ const AdminDocumentsRoute = AdminDocumentsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/tenant': typeof TenantRouteWithChildren
   '/admin/documents': typeof AdminDocumentsRoute
   '/admin/maintenance': typeof AdminMaintenanceRoute
@@ -125,6 +131,7 @@ export interface FileRoutesByFullPath {
   '/admin/properties': typeof AdminPropertiesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/tenants': typeof AdminTenantsRoute
+  '/auth/oauth-callback': typeof AuthOauthCallbackRoute
   '/tenant/documents': typeof TenantDocumentsRoute
   '/tenant/maintenance': typeof TenantMaintenanceRoute
   '/tenant/notifications': typeof TenantNotificationsRoute
@@ -134,7 +141,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/admin/documents': typeof AdminDocumentsRoute
   '/admin/maintenance': typeof AdminMaintenanceRoute
   '/admin/notifications': typeof AdminNotificationsRoute
@@ -142,6 +149,7 @@ export interface FileRoutesByTo {
   '/admin/properties': typeof AdminPropertiesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/tenants': typeof AdminTenantsRoute
+  '/auth/oauth-callback': typeof AuthOauthCallbackRoute
   '/tenant/documents': typeof TenantDocumentsRoute
   '/tenant/maintenance': typeof TenantMaintenanceRoute
   '/tenant/notifications': typeof TenantNotificationsRoute
@@ -153,7 +161,7 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
-  '/auth': typeof AuthRoute
+  '/auth': typeof AuthRouteWithChildren
   '/tenant': typeof TenantRouteWithChildren
   '/admin/documents': typeof AdminDocumentsRoute
   '/admin/maintenance': typeof AdminMaintenanceRoute
@@ -162,6 +170,7 @@ export interface FileRoutesById {
   '/admin/properties': typeof AdminPropertiesRoute
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/tenants': typeof AdminTenantsRoute
+  '/auth/oauth-callback': typeof AuthOauthCallbackRoute
   '/tenant/documents': typeof TenantDocumentsRoute
   '/tenant/maintenance': typeof TenantMaintenanceRoute
   '/tenant/notifications': typeof TenantNotificationsRoute
@@ -183,6 +192,7 @@ export interface FileRouteTypes {
     | '/admin/properties'
     | '/admin/settings'
     | '/admin/tenants'
+    | '/auth/oauth-callback'
     | '/tenant/documents'
     | '/tenant/maintenance'
     | '/tenant/notifications'
@@ -200,6 +210,7 @@ export interface FileRouteTypes {
     | '/admin/properties'
     | '/admin/settings'
     | '/admin/tenants'
+    | '/auth/oauth-callback'
     | '/tenant/documents'
     | '/tenant/maintenance'
     | '/tenant/notifications'
@@ -219,6 +230,7 @@ export interface FileRouteTypes {
     | '/admin/properties'
     | '/admin/settings'
     | '/admin/tenants'
+    | '/auth/oauth-callback'
     | '/tenant/documents'
     | '/tenant/maintenance'
     | '/tenant/notifications'
@@ -230,7 +242,7 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
-  AuthRoute: typeof AuthRoute
+  AuthRoute: typeof AuthRouteWithChildren
   TenantRoute: typeof TenantRouteWithChildren
 }
 
@@ -305,6 +317,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tenant/documents'
       preLoaderRoute: typeof TenantDocumentsRouteImport
       parentRoute: typeof TenantRoute
+    }
+    '/auth/oauth-callback': {
+      id: '/auth/oauth-callback'
+      path: '/oauth-callback'
+      fullPath: '/auth/oauth-callback'
+      preLoaderRoute: typeof AuthOauthCallbackRouteImport
+      parentRoute: typeof AuthRoute
     }
     '/admin/tenants': {
       id: '/admin/tenants'
@@ -382,6 +401,16 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface AuthRouteChildren {
+  AuthOauthCallbackRoute: typeof AuthOauthCallbackRoute
+}
+
+const AuthRouteChildren: AuthRouteChildren = {
+  AuthOauthCallbackRoute: AuthOauthCallbackRoute,
+}
+
+const AuthRouteWithChildren = AuthRoute._addFileChildren(AuthRouteChildren)
+
 interface TenantRouteChildren {
   TenantDocumentsRoute: typeof TenantDocumentsRoute
   TenantMaintenanceRoute: typeof TenantMaintenanceRoute
@@ -404,7 +433,7 @@ const TenantRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
-  AuthRoute: AuthRoute,
+  AuthRoute: AuthRouteWithChildren,
   TenantRoute: TenantRouteWithChildren,
 }
 export const routeTree = rootRouteImport

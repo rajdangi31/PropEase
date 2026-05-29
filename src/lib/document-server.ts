@@ -27,10 +27,41 @@ async function getBucket() {
     return env.BUCKET as any;
   }
 
-  const env = (typeof process !== "undefined" ? process.env : (globalThis as any)) as any;
-  const bucket = env?.BUCKET;
+  // Retrieve Cloudflare env bindings from the custom server entry context or fallbacks
+  let env: any = {};
+  try {
+    const { getCloudflareEnv } = await import("./cloudflare-env");
+    env = getCloudflareEnv();
+  } catch (error) {
+    // Ignore error if server entry cannot be imported
+  }
+
+  // Fallback to H3 event storage if server context doesn't contain BUCKET
+  if (!env.BUCKET) {
+    try {
+      const storageKey = Symbol.for("tanstack-start:event-storage");
+      const eventStorage = (globalThis as any)[storageKey];
+      const event = eventStorage?.getStore()?.h3Event;
+      if (event) {
+        env = event.context?.cloudflare?.env || 
+              event.node?.req?.runtime?.cloudflare?.env ||
+              event.node?.req?.__cloudflare_env || 
+              {};
+      }
+    } catch (error) {
+      // Ignore errors if context is accessed outside request lifecycle
+    }
+  }
+
+  // Fallback to process.env or globalThis if event context is not available
+  if (!env.BUCKET) {
+    const globalEnv = (typeof process !== "undefined" ? process.env : (globalThis as any)) as any;
+    env = globalEnv || {};
+  }
+
+  const bucket = env.BUCKET;
   if (!bucket) {
-    throw new Error("R2 Bucket binding 'BUCKET' not found.");
+    throw new Error("R2 Bucket binding 'BUCKET' not found in server context, Vinxi event context, process.env, or globalThis.");
   }
   return bucket;
 }

@@ -61,6 +61,15 @@ function InviteModal({ properties }: { properties: any[] }) {
     }
   }, [propertyId]);
 
+  useEffect(() => {
+    if (unitId && units.length > 0) {
+      const selectedUnit = units.find((u) => u.id === unitId);
+      if (selectedUnit) {
+        setRentAmount(selectedUnit.rent.toString());
+      }
+    }
+  }, [unitId, units]);
+
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsGenerating(true);
@@ -151,7 +160,7 @@ function InviteModal({ properties }: { properties: any[] }) {
                 <SelectTrigger><SelectValue placeholder={isLoadingUnits ? "Loading..." : "Select vacant unit..."} /></SelectTrigger>
                 <SelectContent>
                   {units.filter(u => u.status === "vacant").map((u) => (
-                    <SelectItem key={u.id} value={u.id}>Unit {u.unitNumber} (${(u.currentMarketRent / 100).toLocaleString()})</SelectItem>
+                    <SelectItem key={u.id} value={u.id}>Unit {u.number} (${u.rent.toLocaleString()})</SelectItem>
                   ))}
                   {units.filter(u => u.status === "vacant").length === 0 && (
                     <SelectItem value="none" disabled>No vacant units</SelectItem>

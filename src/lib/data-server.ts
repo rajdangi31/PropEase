@@ -149,31 +149,42 @@ export const updateMaintenanceRequestFn = createServerFn({ method: "POST" })
     const session = await requireAuth();
     const data = ctx.data;
 
-    let targetStatus = data.status;
-
-    // If maintenance worker tries to resolve, map to resolved_pending
-    if (session.role === "maintenance" || session.role === "service") {
-      if (data.status === "resolved") {
-        targetStatus = "resolved_pending";
-      }
-      
-      // Strip priority and assignee modifications for workers
-      const workerPayload: Record<string, any> = {};
-      if (targetStatus !== undefined) workerPayload.status = targetStatus;
-      return updateMaintenanceRequest(data.id, workerPayload);
-    }
-
-    // Landlord / admin flow:
-    // 1. Fetch current request state for comparison
     const { getDb } = await import("../db/index");
     const { maintenanceRequests } = await import("../db/schema");
     const { eq } = await import("drizzle-orm");
     const db = await getDb();
     const [existingRequest] = await db.select().from(maintenanceRequests).where(eq(maintenanceRequests.id, data.id)).limit(1);
 
+    if (!existingRequest) {
+      throw new Error("Maintenance request not found.");
+    }
+
+    const finalStatus = data.status !== undefined ? data.status : existingRequest.status;
+    const finalAssignee = data.assignedWorkerId !== undefined ? data.assignedWorkerId : existingRequest.assignedWorkerId;
+
+    if (finalStatus !== "pending" && !finalAssignee) {
+      throw new Error("Cannot move maintenance request: No worker is assigned.");
+    }
+
+    if (session.role === "maintenance" || session.role === "service") {
+      if (data.status === "resolved") {
+        throw new Error("Only landlords or managers can set status to Resolved.");
+      }
+      
+      // Strip priority and assignee modifications for workers
+      const workerPayload: Record<string, any> = {};
+      if (data.status !== undefined) workerPayload.status = data.status;
+      return updateMaintenanceRequest(data.id, workerPayload);
+    }
+
+    if (session.role !== "landlord" && session.role !== "manager" && session.role !== "admin") {
+      throw new Error("Unauthorized");
+    }
+
+    // Landlord / admin flow:
     // Only include fields that were actually provided to avoid setting NOT NULL columns to NULL
     const payload: Record<string, any> = {};
-    if (targetStatus !== undefined) payload.status = targetStatus;
+    if (data.status !== undefined) payload.status = data.status;
     if (data.priority !== undefined) payload.priority = data.priority;
     if (data.assignedWorkerId !== undefined) payload.assignedWorkerId = data.assignedWorkerId;
 

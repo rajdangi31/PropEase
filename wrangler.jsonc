@@ -1,21 +1,23 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "propease",
-  "compatibility_date": "2025-09-24",
-  "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "propease-db",
-      "database_id": "propease-db",
-      "migrations_dir": "./drizzle/migrations"
-    }
-  ],
-  "r2_buckets": [
-    {
-      "binding": "BUCKET",
-      "bucket_name": "propease-bucket"
-    }
-  ]
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "propease",
+	"compatibility_date": "2025-09-24",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"main": "./src/server.ts",
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "propease-db",
+			"database_id": "b01515fd-594f-489d-b2a2-3c223ad11b76",
+			"migrations_dir": "./drizzle/migrations"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "propease-bucket"
+		}
+	]
 }

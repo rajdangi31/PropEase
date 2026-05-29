@@ -201,7 +201,7 @@ function AdminDashboard() {
                         <Icon className="h-4 w-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm leading-snug">{a.description}</p>
+                        <p className="text-sm leading-snug break-words whitespace-pre-wrap">{a.description}</p>
                         <p className="mt-0.5 text-xs text-muted-foreground">
                           {a.actorName} · <Clock className="mr-0.5 inline h-3 w-3" />{relativeTime(a.timestamp)}
                         </p>

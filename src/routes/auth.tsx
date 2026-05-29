@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Building2, ShieldCheck, Wrench, User } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -8,12 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { signInFn, requestSignUpOtpFn, verifyOtpAndSignUpFn } from "@/lib/auth-server";
+import { getGoogleAuthUrlFn } from "@/lib/oauth-server";
 import { getInviteDetailsFn } from "@/lib/property-server";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>): { invite?: string } => ({
+  validateSearch: (search: Record<string, unknown>): { invite?: string; error?: string } => ({
     invite: search.invite as string | undefined,
+    error: search.error as string | undefined,
   }),
   loader: async ({ deps }: { deps: { invite?: string } }) => {
     if (deps.invite) {
@@ -40,7 +42,7 @@ const roles = [
 function AuthPage() {
   const navigate = useNavigate();
   const { inviteDetails, inviteError } = Route.useLoaderData() as any;
-  const search = Route.useSearch() as { invite?: string };
+  const search = Route.useSearch();
   const inviteToken = search.invite;
 
   // If invited, force role to tenant (or maintenance if inviteType is maintenance), otherwise remove tenant from roles array
@@ -56,18 +58,42 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
-  const [error, setError] = useState(inviteError || "");
+  const [error, setError] = useState(search.error || inviteError || "");
   const [isLoading, setIsLoading] = useState(false);
   
   const [isVerifying, setIsVerifying] = useState(false);
   const [otp, setOtp] = useState("");
+
+  const defaultTab = inviteDetails
+    ? (inviteDetails.emailExists ? "signin" : "signup")
+    : "signin";
+  const [activeTab, setActiveTab] = useState(defaultTab);
+
+  useEffect(() => {
+    if (search.error) {
+      setError(search.error);
+    }
+  }, [search.error]);
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setIsLoading(true);
+    try {
+      const result = await getGoogleAuthUrlFn({ data: { inviteToken } });
+      window.location.href = result.authUrl;
+    } catch (err: any) {
+      setError(err.message || "Failed to initialize Google Sign In.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsLoading(true);
     try {
-      const result = await signInFn({ data: { email, password } });
+      const result = await signInFn({ data: { email, password, inviteToken } });
       // Route based on the actual role from the database, not the picker
       const dbRole = result.profile.role;
       const target = dbRole === "tenant" ? "/tenant" : "/admin";
@@ -204,7 +230,7 @@ function AuthPage() {
               <h1 className="text-2xl font-bold tracking-tight">Welcome to PropEase</h1>
               <p className="mt-1.5 text-sm text-muted-foreground">Sign in or create an account to continue.</p>
 
-              <Tabs defaultValue="signin" className="mt-6">
+              <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="mt-6">
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="signin">Sign in</TabsTrigger>
                   <TabsTrigger value="signup">Sign up</TabsTrigger>
@@ -223,6 +249,28 @@ function AuthPage() {
                     </div>
                     <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
                       {isLoading ? "Signing in..." : "Sign in"}
+                    </Button>
+
+                    <div className="relative my-4">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 w-full text-base"
+                      disabled={isLoading}
+                      onClick={handleGoogleSignIn}
+                    >
+                      <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                        <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+                      </svg>
+                      Google
                     </Button>
                   </form>
                 </TabsContent>
@@ -263,6 +311,28 @@ function AuthPage() {
                     <RolePicker role={role} setRole={setRole} availableRoles={displayRoles} />
                     <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
                       {isLoading ? "Creating account..." : "Create account"}
+                    </Button>
+
+                    <div className="relative my-4">
+                      <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t" />
+                      </div>
+                      <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                      </div>
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 w-full text-base"
+                      disabled={isLoading}
+                      onClick={handleGoogleSignIn}
+                    >
+                      <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                        <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+                      </svg>
+                      Google
                     </Button>
                   </form>
                 </TabsContent>

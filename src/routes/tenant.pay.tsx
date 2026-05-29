@@ -1,10 +1,8 @@
-import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
-import { CreditCard, Lock, ShieldCheck, FileText, Loader2, Download } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { createFileRoute, useRouter, useNavigate } from "@tanstack/react-router";
+import { useState, useEffect } from "react";
+import { CreditCard, Lock, ShieldCheck, FileText, Loader2, Download, AlertTriangle } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -12,48 +10,86 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
-import { getTenantDashboardFn, getMyPaymentsAsTenantFn, payRentFn } from "@/lib/data-server";
+import { getTenantDashboardFn, getMyPaymentsAsTenantFn } from "@/lib/data-server";
+import { createStripeCheckoutSessionFn, verifyStripePaymentFn } from "@/lib/stripe-server";
 
 export const Route = createFileRoute("/tenant/pay")({
-  loader: () =>
+  validateSearch: (search: Record<string, unknown>): { session_id?: string } => ({
+    session_id: search.session_id as string | undefined,
+  }),
+  loaderDeps: ({ search }) => search,
+  loader: ({ deps }) =>
     Promise.all([getTenantDashboardFn(), getMyPaymentsAsTenantFn()]).then(
-      ([dashboard, history]) => ({ dashboard, history })
+      ([dashboard, history]) => ({ dashboard, history, sessionId: deps.session_id })
     ),
   component: PayRent,
 });
 
 function PayRent() {
-  const { dashboard, history } = Route.useLoaderData();
+  const { dashboard, history, sessionId } = Route.useLoaderData();
   const router = useRouter();
+  const navigate = useNavigate();
   
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("12 / 27");
-  const [cvc, setCvc] = useState("123");
-  const [zip, setZip] = useState("11201");
   const [isPaying, setIsPaying] = useState(false);
+  const [isVerifyingStripe, setIsVerifyingStripe] = useState(!!sessionId);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Receipt dialog fields
   const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<any | null>(null);
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  useEffect(() => {
+    if (sessionId) {
+      const verifyPayment = async () => {
+        setIsVerifyingStripe(true);
+        try {
+          await verifyStripePaymentFn({ data: { sessionId } });
+          setMessage({ type: "success", text: "Rent payment processed and verified successfully via Stripe Checkout!" });
+          // Clear query params
+          navigate({ to: "/tenant/pay", replace: true });
+          router.invalidate();
+        } catch (err: any) {
+          console.error("Stripe verification error:", err);
+          setMessage({ type: "error", text: err.message || "Failed to verify Stripe payment. Please check your card or contact support." });
+        } finally {
+          setIsVerifyingStripe(false);
+        }
+      };
+
+      verifyPayment();
+    }
+  }, [sessionId, navigate, router]);
+
+  const handleStripePay = async () => {
     setIsPaying(true);
     setMessage(null);
     try {
-      await payRentFn({ data: { cardNumber } });
-      setMessage({ type: "success", text: "Payment processed successfully!" });
-      setTimeout(() => {
-        router.invalidate();
-        setCardNumber("");
-        setIsPaying(false);
-      }, 1000);
+      const result = await createStripeCheckoutSessionFn();
+      if (result.checkoutUrl) {
+        window.location.href = result.checkoutUrl;
+      } else {
+        throw new Error("Stripe Checkout URL could not be generated.");
+      }
     } catch (err: any) {
-      setMessage({ type: "error", text: err.message || "Failed to process payment." });
+      setMessage({ type: "error", text: err.message || "Failed to launch Stripe Checkout." });
       setIsPaying(false);
     }
   };
+
+  if (isVerifyingStripe) {
+    return (
+      <div className="flex min-h-[400px] flex-col items-center justify-center text-center p-8">
+        <div className="relative flex h-20 w-20 items-center justify-center">
+          <div className="absolute h-full w-full animate-spin rounded-full border-4 border-accent border-t-transparent"></div>
+          <CreditCard className="h-8 w-8 text-accent animate-pulse" />
+        </div>
+        <h3 className="mt-6 text-lg font-semibold tracking-tight">Verifying Stripe Payment</h3>
+        <p className="mt-2 text-sm text-muted-foreground max-w-sm">
+          Please wait while we confirm your payment details with Stripe and secure your rent transaction receipt.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -90,71 +126,72 @@ function PayRent() {
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardHeader><CardTitle className="text-base">Payment details</CardTitle></CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {message && (
-                    <div
-                      className={`rounded-md p-3 text-sm ${
-                        message.type === "success"
-                          ? "bg-success/15 text-success"
-                          : "bg-destructive/15 text-destructive"
-                      }`}
-                    >
-                      {message.text}
-                    </div>
-                  )}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label>Amount</Label>
-                      <Input value={`$${dashboard.balance}`} disabled className="opacity-70 cursor-not-allowed" />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label>Due date</Label>
-                      <Input value={dashboard.dueDate} disabled className="opacity-70 cursor-not-allowed" />
-                    </div>
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label htmlFor="card-number">Card number</Label>
-                    <div className="relative">
-                      <CreditCard className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                      <Input
-                        id="card-number"
-                        className="pl-9"
-                        placeholder="4242 4242 4242 4242"
-                        value={cardNumber}
-                        onChange={(e) => setCardNumber(e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="space-y-1.5">
-                      <Label htmlFor="expiry">Expiry</Label>
-                      <Input id="expiry" value={expiry} onChange={(e) => setExpiry(e.target.value)} required />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="cvc">CVC</Label>
-                      <Input id="cvc" value={cvc} onChange={(e) => setCvc(e.target.value)} required />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="zip">ZIP</Label>
-                      <Input id="zip" value={zip} onChange={(e) => setZip(e.target.value)} required />
-                    </div>
-                  </div>
-                  <Button type="submit" className="h-12 w-full text-base" disabled={isPaying}>
-                    {isPaying ? (
-                      <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            <Card className="overflow-hidden border border-border/80 shadow-md">
+              <div className="bg-gradient-to-r from-accent/10 via-accent/5 to-transparent px-6 py-5 border-b border-border/50">
+                <CardTitle className="text-base font-semibold flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-accent" /> Secure Rent Payment
+                </CardTitle>
+                <CardDescription className="text-xs mt-1">
+                  Pay your outstanding rent balance securely via Stripe.
+                </CardDescription>
+              </div>
+              <CardContent className="p-6 space-y-6">
+                {message && (
+                  <div
+                    className={`rounded-xl p-4 text-sm flex items-start gap-3 border ${
+                      message.type === "success"
+                        ? "bg-success/10 border-success/20 text-success"
+                        : "bg-destructive/10 border-destructive/20 text-destructive"
+                    }`}
+                  >
+                    {message.type === "success" ? (
+                      <ShieldCheck className="h-5 w-5 shrink-0 mt-0.5" />
                     ) : (
-                      <Lock className="mr-1.5 h-4 w-4" />
+                      <AlertTriangle className="h-5 w-5 shrink-0 mt-0.5" />
                     )}
-                    {isPaying ? "Processing..." : `Pay $${dashboard.balance.toLocaleString()}`}
-                  </Button>
-                  <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
-                    <ShieldCheck className="h-3.5 w-3.5" /> Secured by Stripe · Sandbox Demo
+                    <div>
+                      <p className="font-semibold">{message.type === "success" ? "Success" : "Payment Issue"}</p>
+                      <p className="mt-0.5 text-xs opacity-90">{message.text}</p>
+                    </div>
+                  </div>
+                )}
+                
+                <div className="rounded-2xl bg-muted/40 border border-border/50 p-6 flex flex-col items-center text-center justify-center space-y-2">
+                  <p className="text-xs uppercase tracking-wider font-semibold text-muted-foreground">Outstanding Balance</p>
+                  <p className="text-4xl font-extrabold tracking-tight text-foreground bg-gradient-to-r from-foreground via-foreground/90 to-muted-foreground bg-clip-text">
+                    ${dashboard.balance.toLocaleString(undefined, { minimumFractionDigits: 2 })}
                   </p>
-                </form>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                    Due date: <span className="font-medium text-foreground">{dashboard.dueDate}</span>
+                  </p>
+                </div>
+
+                <div className="space-y-4">
+                  <Button 
+                    onClick={handleStripePay} 
+                    className="h-13 w-full text-base font-semibold bg-gradient-to-r from-accent to-accent/90 hover:from-accent/95 hover:to-accent/85 shadow-md shadow-accent/20 transition-all hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-2 group cursor-pointer" 
+                    disabled={isPaying}
+                  >
+                    {isPaying ? (
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                    ) : (
+                      <Lock className="h-4 w-4 transition-transform group-hover:scale-110" />
+                    )}
+                    {isPaying ? "Launching Gateway..." : `Pay $${dashboard.balance.toLocaleString()} securely`}
+                  </Button>
+                  
+                  <div className="flex flex-col items-center justify-center space-y-3">
+                    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <ShieldCheck className="h-4 w-4 text-success" /> Payments are encrypted and secured by Stripe.
+                    </p>
+                    <div className="flex gap-2 opacity-50 grayscale hover:opacity-70 hover:grayscale-0 transition-all">
+                      <img src="https://js.stripe.com/v3/fingerprinted/img/visa-72545d4e12e177fcb348db4974f115a3.svg" className="h-6" alt="Visa" />
+                      <img src="https://js.stripe.com/v3/fingerprinted/img/mastercard-a12f6c0143899db9e92cf4de7c9e05fa.svg" className="h-6" alt="Mastercard" />
+                      <img src="https://js.stripe.com/v3/fingerprinted/img/amex-910fa16857addf9eec45c38e4a9e224e.svg" className="h-6" alt="Amex" />
+                      <img src="https://js.stripe.com/v3/fingerprinted/img/discover-4df15a6b7d346ff175d7b5bf46d7e0f2.svg" className="h-6" alt="Discover" />
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           )}
@@ -229,6 +266,7 @@ function PayRent() {
                                 due: p.dueDate,
                                 paidDate: p.paidDate,
                                 category: p.category,
+                                transactionId: p.transactionId,
                               });
                               setIsReceiptDialogOpen(true);
                             }}
@@ -295,8 +333,18 @@ function PayRent() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Payment Method</p>
-                    <p className="font-medium mt-0.5">Stripe Secure Sandbox</p>
+                    <p className="font-medium mt-0.5">
+                      {selectedPaymentForReceipt.transactionId && selectedPaymentForReceipt.transactionId.startsWith("cs_")
+                        ? "Stripe Checkout"
+                        : selectedPaymentForReceipt.transactionId || "Stripe Secure Sandbox"}
+                    </p>
                   </div>
+                  {selectedPaymentForReceipt.transactionId && (
+                    <div className="col-span-2">
+                      <p className="text-xs text-muted-foreground">Stripe Session ID</p>
+                      <p className="font-mono text-xs mt-0.5 break-all text-muted-foreground bg-muted p-2 rounded">{selectedPaymentForReceipt.transactionId}</p>
+                    </div>
+                  )}
                 </div>
               </div>
 

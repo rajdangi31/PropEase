@@ -1,0 +1,11 @@
+# PropEase - Local Environment Variables Example
+# Copy this file to '.dev.vars' in the same directory and fill in your keys.
+# DO NOT commit '.dev.vars' to version control!
+
+# Stripe Secret Key (from Stripe Dashboard > Developers > API keys)
+# Use the test mode key for development (starts with sk_test_)
+STRIPE_SECRET_KEY=sk_test_replace_with_your_stripe_secret_key
+
+# Google OAuth Credentials (from Google Cloud Console > APIs & Services > Credentials)
+GOOGLE_CLIENT_ID=replace_with_your_google_client_id.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=replace_with_your_google_client_secret

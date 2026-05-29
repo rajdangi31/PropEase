@@ -16,6 +16,15 @@ import {
   maintenanceLogs,
 } from "./schema";
 
+export async function autoExpireLeases(db: any) {
+  const todayStr = new Date().toISOString().split("T")[0];
+  const { eq, and, lt } = await import("drizzle-orm");
+  await db
+    .update(leases)
+    .set({ status: "expired", updatedAt: sql`CURRENT_TIMESTAMP` })
+    .where(and(eq(leases.status, "active"), lt(leases.endDate, todayStr)));
+}
+
 // ─── Profile Queries ───────────────────────────────────────
 
 export async function getProfileByEmail(email: string) {
@@ -173,6 +182,7 @@ export async function getUnitsByProperty(
   propertyId: string
 ): Promise<UnitWithTenant[]> {
   const db = await getDb();
+  await autoExpireLeases(db);
 
   const unitRows = await db
     .select()
@@ -185,14 +195,19 @@ export async function getUnitsByProperty(
     let tenantName: string | null = null;
 
     if (unit.status === "occupied") {
-      // Find the active lease for this unit, then find the primary tenant
-      const [activeLease] = await db
-        .select({ id: leases.id })
+      // Find the active leases for this unit, then find the primary tenant
+      const activeLeases = await db
+        .select()
         .from(leases)
         .where(
           and(eq(leases.unitId, unit.id), eq(leases.status, "active"))
-        )
-        .limit(1);
+        );
+
+      const todayStr = new Date().toISOString().split("T")[0];
+      let activeLease = activeLeases.find((l: any) => l.startDate <= todayStr && l.endDate >= todayStr);
+      if (!activeLease && activeLeases.length > 0) {
+        activeLease = activeLeases.find((l: any) => l.startDate > todayStr) || activeLeases[0];
+      }
 
       if (activeLease) {
         const [tenantLink] = await db
@@ -239,6 +254,17 @@ export async function createUnit(data: InsertUnit) {
   return unit;
 }
 
+export async function updateUnit(id: string, data: Partial<InsertUnit>) {
+  const db = await getDb();
+  const [unit] = await db
+    .update(units)
+    .set({ ...data, updatedAt: sql`CURRENT_TIMESTAMP` })
+    .where(eq(units.id, id))
+    .returning();
+  return unit;
+}
+
+
 // ─── Tenant Queries ────────────────────────────────────────
 
 export type TenantRow = {
@@ -249,6 +275,8 @@ export type TenantRow = {
 
 export async function getTenantsByLandlord(landlordId: string): Promise<TenantRow[]> {
   const db = await getDb();
+  await autoExpireLeases(db);
+
   const props = await db.select({ id: properties.id, name: properties.name })
     .from(properties).where(eq(properties.landlordId, landlordId));
   if (props.length === 0) return [];
@@ -257,8 +285,16 @@ export async function getTenantsByLandlord(landlordId: string): Promise<TenantRo
   for (const prop of props) {
     const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
     for (const unit of unitRows) {
-      const activeLeases = await db.select().from(leases)
+      const activeLeasesRaw = await db.select().from(leases)
         .where(and(eq(leases.unitId, unit.id), eq(leases.status, "active")));
+
+      const todayStr = new Date().toISOString().split("T")[0];
+      let currentLease = activeLeasesRaw.find((l: any) => l.startDate <= todayStr && l.endDate >= todayStr);
+      if (!currentLease && activeLeasesRaw.length > 0) {
+        currentLease = activeLeasesRaw.find((l: any) => l.startDate > todayStr) || activeLeasesRaw[0];
+      }
+
+      const activeLeases = currentLease ? [currentLease] : [];
       for (const lease of activeLeases) {
         const tenantLinks = await db.select().from(leaseTenants)
           .where(eq(leaseTenants.leaseId, lease.id));
@@ -597,6 +633,7 @@ export async function getPaymentsByTenant(tenantId: string) {
     amount: p.amount / 100,
     status: statusMap[p.status] || p.status,
     category: p.category,
+    transactionId: p.transactionId,
   }));
 }
 
@@ -966,38 +1003,50 @@ export type TenantDashboardData = {
 
 export async function getTenantDashboard(tenantId: string): Promise<TenantDashboardData> {
   const db = await getDb();
+  await autoExpireLeases(db);
+
   // Find active lease for this tenant
   const tenantLinks = await db.select().from(leaseTenants)
     .where(eq(leaseTenants.profileId, tenantId));
 
+  const activeLeases: typeof leases.$inferSelect[] = [];
   for (const link of tenantLinks) {
     const [lease] = await db.select().from(leases)
       .where(and(eq(leases.id, link.leaseId), eq(leases.status, "active"))).limit(1);
-    if (!lease) continue;
-
-    const [unit] = await db.select().from(units).where(eq(units.id, lease.unitId)).limit(1);
-    if (!unit) continue;
-
-    const [prop] = await db.select({ name: properties.name }).from(properties)
-      .where(eq(properties.id, unit.propertyId)).limit(1);
-
-    // Get pending payments
-    const pendingPays = await db.select().from(paymentsTable)
-      .where(and(eq(paymentsTable.leaseId, lease.id), eq(paymentsTable.tenantId, tenantId)));
-    const balance = pendingPays.filter((p: any) => p.status === "pending").reduce((s: any, p: any) => s + p.amount, 0);
-    const nextDue = pendingPays.find((p: any) => p.status === "pending");
-
-    return {
-      unitLabel: `${prop?.name ?? "Property"} · Apt ${unit.unitNumber}`,
-      leaseEnd: lease.endDate,
-      rent: lease.monthlyRent / 100,
-      dueDate: nextDue?.dueDate ?? "No upcoming",
-      balance: balance / 100,
-      hasLease: true,
-    };
+    if (lease) activeLeases.push(lease);
   }
 
-  return { unitLabel: "", leaseEnd: "", rent: 0, dueDate: "", balance: 0, hasLease: false };
+  if (activeLeases.length === 0) {
+    return { unitLabel: "", leaseEnd: "", rent: 0, dueDate: "", balance: 0, hasLease: false };
+  }
+
+  // Prioritize lease covering today, fallback to future lease, then first lease
+  const todayStr = new Date().toISOString().split("T")[0];
+  let lease = activeLeases.find(l => l.startDate <= todayStr && l.endDate >= todayStr);
+  if (!lease) {
+    lease = activeLeases.find(l => l.startDate > todayStr) || activeLeases[0];
+  }
+
+  const [unit] = await db.select().from(units).where(eq(units.id, lease.unitId)).limit(1);
+  if (!unit) return { unitLabel: "", leaseEnd: "", rent: 0, dueDate: "", balance: 0, hasLease: false };
+
+  const [prop] = await db.select({ name: properties.name }).from(properties)
+    .where(eq(properties.id, unit.propertyId)).limit(1);
+
+  // Get pending payments
+  const pendingPays = await db.select().from(paymentsTable)
+    .where(and(eq(paymentsTable.leaseId, lease.id), eq(paymentsTable.tenantId, tenantId)));
+  const balance = pendingPays.filter((p: any) => p.status === "pending").reduce((s: any, p: any) => s + p.amount, 0);
+  const nextDue = pendingPays.find((p: any) => p.status === "pending");
+
+  return {
+    unitLabel: `${prop?.name ?? "Property"} · Apt ${unit.unitNumber}`,
+    leaseEnd: lease.endDate,
+    rent: lease.monthlyRent / 100,
+    dueDate: nextDue?.dueDate ?? "No upcoming",
+    balance: balance / 100,
+    hasLease: true,
+  };
 }
 
 // ─── Invitations ───────────────────────────────────────────
@@ -1175,6 +1224,179 @@ PropEase Billing`;
 
   return updatedPayments;
 }
+
+export async function payTenantPaymentWithStripe(tenantId: string, transactionId: string) {
+  const db = await getDb();
+  
+  // First, check if payments with this transaction ID have already been processed to ensure idempotency.
+  const processed = await db
+    .select()
+    .from(paymentsTable)
+    .where(eq(paymentsTable.transactionId, transactionId));
+    
+  if (processed.length > 0) {
+    return processed;
+  }
+  
+  // Find all pending payments for this tenant
+  const pendingPayments = await db
+    .select()
+    .from(paymentsTable)
+    .where(and(eq(paymentsTable.tenantId, tenantId), eq(paymentsTable.status, "pending")));
+
+  if (pendingPayments.length === 0) {
+    throw new Error("No pending payments found for this tenant.");
+  }
+
+  const updatedPayments = [];
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  for (const payment of pendingPayments) {
+    const [updated] = await db
+      .update(paymentsTable)
+      .set({
+        status: "paid",
+        paidDate: todayStr,
+        transactionId: transactionId,
+        updatedAt: sql`CURRENT_TIMESTAMP`,
+      })
+      .where(eq(paymentsTable.id, payment.id))
+      .returning();
+      
+    updatedPayments.push(updated);
+
+    // Get tenant details for logs and emails
+    const [tenant] = await db
+      .select({ firstName: profiles.firstName, lastName: profiles.lastName, email: profiles.email })
+      .from(profiles)
+      .where(eq(profiles.id, tenantId))
+      .limit(1);
+    const tenantName = tenant ? `${tenant.firstName} ${tenant.lastName}` : "Tenant";
+
+    // Find the landlord to notify
+    const [lease] = await db
+      .select().from(leases).where(eq(leases.id, payment.leaseId)).limit(1);
+    
+    if (lease) {
+      const [unit] = await db
+        .select().from(units).where(eq(units.id, lease.unitId)).limit(1);
+      if (unit) {
+        const [property] = await db
+          .select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+        
+        if (property) {
+          // 1. Notify Landlord in App
+          await db.insert(notificationsTable).values({
+            id: crypto.randomUUID(),
+            recipientId: property.landlordId,
+            type: "payment",
+            title: "Rent Payment Received",
+            body: `${tenantName} paid $${(payment.amount / 100).toLocaleString()} for Apt ${unit.unitNumber} (${property.name}) via Stripe.`,
+            isRead: false,
+          });
+
+          // 2. Log Activity
+          await db.insert(activityLogs).values({
+            id: crypto.randomUUID(),
+            actorId: tenantId,
+            actionType: "PAYMENT_RECEIVED",
+            description: `${tenantName} paid rent of $${(payment.amount / 100).toLocaleString()} for Apt ${unit.unitNumber} via Stripe.`,
+          });
+
+          // 3. Email Tenant (Receipt)
+          if (tenant && tenant.email) {
+            try {
+              const amountStr = `$${(payment.amount / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+              const subject = `[Receipt] Rent Payment Confirmed - Apt ${unit.unitNumber}`;
+              const text = `Hello ${tenant.firstName},
+
+This email confirms receipt of your payment for Apt ${unit.unitNumber} (${property.name}):
+
+Receipt Reference: ${updated.id}
+Stripe Session ID: ${transactionId}
+Amount Paid: ${amountStr}
+Payment Category: Rent
+Payment Method: Card (Stripe Checkout)
+Date Processed: ${todayStr}
+
+Status: Paid
+
+Thank you for your payment!
+
+Best regards,
+PropEase Billing`;
+
+              const html = `<p>Hello ${tenant.firstName},</p>
+<p>This email confirms receipt of your payment for <strong>Apt ${unit.unitNumber} (${property.name})</strong>:</p>
+<table style="border: 1px solid #ccc; padding: 10px; border-collapse: collapse;">
+  <tr><td><strong>Receipt Reference:</strong></td><td>${updated.id}</td></tr>
+  <tr><td><strong>Stripe Session ID:</strong></td><td><code>${transactionId}</code></td></tr>
+  <tr><td><strong>Amount Paid:</strong></td><td><strong>${amountStr}</strong></td></tr>
+  <tr><td><strong>Category:</strong></td><td>Rent</td></tr>
+  <tr><td><strong>Payment Method:</strong></td><td>Card (Stripe Checkout)</td></tr>
+  <tr><td><strong>Date Processed:</strong></td><td>${todayStr}</td></tr>
+  <tr><td><strong>Status:</strong></td><td><span style="color: green; font-weight: bold;">Paid</span></td></tr>
+</table>
+<p>Thank you for your payment!</p>
+<p>Best regards,<br/>PropEase Billing</p>`;
+
+              const { sendEmail } = await import("../lib/email");
+              await sendEmail({ to: tenant.email, subject, html, text });
+            } catch (err) {
+              console.error("Failed to send tenant payment receipt email:", err);
+            }
+          }
+
+          // 4. Email Landlord (Notification)
+          const [landlord] = await db
+            .select({ firstName: profiles.firstName, email: profiles.email })
+            .from(profiles)
+            .where(eq(profiles.id, property.landlordId))
+            .limit(1);
+
+          if (landlord && landlord.email) {
+            try {
+              const amountStr = `$${(payment.amount / 100).toLocaleString(undefined, { minimumFractionDigits: 2 })}`;
+              const subject = `[Payment Received] Rent Paid for Apt ${unit.unitNumber}`;
+              const text = `Hello ${landlord.firstName},
+
+This is to notify you that ${tenantName} has paid rent for Apt ${unit.unitNumber} (${property.name}) via Stripe.
+
+Payment Reference: ${updated.id}
+Stripe Session ID: ${transactionId}
+Amount: ${amountStr}
+Date: ${todayStr}
+
+The payment ledger has been updated.
+
+Best regards,
+PropEase Billing`;
+
+              const html = `<p>Hello ${landlord.firstName},</p>
+<p>This is to notify you that <strong>${tenantName}</strong> has paid rent for <strong>Apt ${unit.unitNumber} (${property.name})</strong> via Stripe.</p>
+<table style="border: 1px solid #ccc; padding: 10px; border-collapse: collapse;">
+  <tr><td><strong>Payment Reference:</strong></td><td>${updated.id}</td></tr>
+  <tr><td><strong>Stripe Session ID:</strong></td><td><code>${transactionId}</code></td></tr>
+  <tr><td><strong>Amount:</strong></td><td>${amountStr}</td></tr>
+  <tr><td><strong>Date:</strong></td><td>${todayStr}</td></tr>
+</table>
+<p>The payment ledger has been updated automatically.</p>
+<p>Best regards,<br/>PropEase Billing</p>`;
+
+              const { sendEmail } = await import("../lib/email");
+              await sendEmail({ to: landlord.email, subject, html, text });
+            } catch (err) {
+              console.error("Failed to send landlord payment notification email:", err);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return updatedPayments;
+}
+
 
 // ─── Document Queries ───────────────────────────────────────
 
@@ -1433,6 +1655,10 @@ export async function generateRentInvoices(landlordId: string): Promise<number> 
   let invoicesGenerated = 0;
 
   for (const lease of activeLeases) {
+    // Skip future leases (lease.startDate is in the future)
+    const todayStr = today.toISOString().split("T")[0];
+    if (lease.startDate > todayStr) continue;
+
     // Get primary tenant
     const [primaryTenantLink] = await db
       .select({ profileId: leaseTenants.profileId })
@@ -1502,6 +1728,7 @@ export type ActiveLeaseRow = {
 
 export async function getLandlordActiveLeases(landlordId: string): Promise<ActiveLeaseRow[]> {
   const db = await getDb();
+  await autoExpireLeases(db);
   const { eq, and } = await import("drizzle-orm");
 
   // Get landlord properties
@@ -1513,8 +1740,16 @@ export async function getLandlordActiveLeases(landlordId: string): Promise<Activ
   for (const prop of props) {
     const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
     for (const unit of unitRows) {
-      const activeLeases = await db.select().from(leases)
+      const activeLeasesRaw = await db.select().from(leases)
         .where(and(eq(leases.unitId, unit.id), eq(leases.status, "active")));
+
+      const todayStr = new Date().toISOString().split("T")[0];
+      let currentLease = activeLeasesRaw.find((l: any) => l.startDate <= todayStr && l.endDate >= todayStr);
+      if (!currentLease && activeLeasesRaw.length > 0) {
+        currentLease = activeLeasesRaw.find((l: any) => l.startDate > todayStr) || activeLeasesRaw[0];
+      }
+
+      const activeLeases = currentLease ? [currentLease] : [];
       for (const lease of activeLeases) {
         const tenantLinks = await db.select().from(leaseTenants)
           .where(eq(leaseTenants.leaseId, lease.id));
@@ -1704,13 +1939,7 @@ export async function renewLease(
   nextDay.setDate(nextDay.getDate() + 1);
   const newStartDateStr = nextDay.toISOString().split("T")[0];
 
-  // 3. Mark old lease as expired
-  await db
-    .update(leases)
-    .set({ status: "expired", updatedAt: sql`CURRENT_TIMESTAMP` })
-    .where(eq(leases.id, leaseId));
-
-  // 4. Create new lease
+  // 3. Create new lease (old lease remains active until its end date has passed)
   const newLeaseId = crypto.randomUUID();
   const [newLease] = await db
     .insert(leases)
