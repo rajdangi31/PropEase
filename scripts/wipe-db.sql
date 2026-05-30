@@ -1,0 +1,17 @@
+PRAGMA foreign_keys = OFF;
+DROP TABLE IF EXISTS property_workers;
+DROP TABLE IF EXISTS verification_codes;
+DROP TABLE IF EXISTS invitations;
+DROP TABLE IF EXISTS documents;
+DROP TABLE IF EXISTS activity_logs;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS maintenance_logs;
+DROP TABLE IF EXISTS maintenance_requests;
+DROP TABLE IF EXISTS lease_tenants;
+DROP TABLE IF EXISTS leases;
+DROP TABLE IF EXISTS units;
+DROP TABLE IF EXISTS properties;
+DROP TABLE IF EXISTS profiles;
+DROP TABLE IF EXISTS _cf_D1_migrations;
+PRAGMA foreign_keys = ON;

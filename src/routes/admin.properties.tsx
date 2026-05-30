@@ -1,5 +1,5 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Building2, MapPin, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -58,6 +58,15 @@ function PropertiesPage() {
   const [showAddUnit, setShowAddUnit] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Automatically sync activeProperty when properties list updates or activeProperty is invalid
+  useEffect(() => {
+    const hasActiveProp = properties.some((p) => p.id === activeProperty);
+    if ((!activeProperty || !hasActiveProp) && properties[0]?.id) {
+      setActiveProperty(properties[0].id);
+    }
+  }, [properties, activeProperty]);
+
+
   // Property form state
   const [propName, setPropName] = useState("");
   const [propAddress, setPropAddress] = useState("");
@@ -109,7 +118,10 @@ function PropertiesPage() {
 
   const handleCreateUnit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!activeProperty) return;
+    if (!activeProperty) {
+      toast.error("Please select a property before creating a unit.");
+      return;
+    }
     setIsLoading(true);
     try {
       await createUnitFn({
