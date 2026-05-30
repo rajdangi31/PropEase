@@ -202,7 +202,9 @@ export const createInviteFn = createServerFn({ method: "POST" })
           if (unit) unitLabel = ` · Apt ${unit.unitNumber}`;
         }
 
-        const signupUrl = `http://localhost:8080/auth?invite=${invite.id}`;
+        const host = ctx.request.headers.get("host") || "localhost:8080";
+        const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
+        const signupUrl = `${protocol}://${host}/auth?invite=${invite.id}`;
         const typeLabel = data.inviteType === "maintenance" ? "Maintenance Worker" : "Tenant";
         const subject = `Join PropEase - You have been invited by ${landlordName}`;
 
