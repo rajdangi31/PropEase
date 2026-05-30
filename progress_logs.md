@@ -139,3 +139,56 @@ Today we successfully resolved the Cloudflare Workers subdomain configuration, i
 - Successfully compiled the production bundle with `npm run build`.
 - Deployed the application live using `npx wrangler deploy --config dist/server/wrangler.json`.
 - **Production URL**: [https://propease.rach-dev0731.workers.dev](https://propease.rach-dev0731.workers.dev)
+
+---
+
+## Progress Log: May 28, 2026 — Stripe Checkout & OAuth Integrations
+
+### 🚀 Accomplishments
+Today we successfully wired real-world integrations for secure tenant payments and Google authentication.
+
+### 1. Stripe Checkout Integration
+- **Session Generation**: Created `stripe-server.ts` server functions to spawn secure Stripe Checkout sessions based on active tenant balances.
+- **Payment Verification**: Implemented dynamic redirect callbacks that verify checkout session IDs in the URL on route load, processing database logs automatically.
+- **Ledger Upgrades**: Updated the payments ledger and receipts modals to render secure transaction references and Stripe Checkout transaction signatures.
+
+### 2. Error Handling & OAuth Polish
+- **Router Trapping Bug**: Resolved a TanStack Router bug where loaders trapping authentication errors accidentally caught the redirect errors, resetting successful sign-ins back to login.
+- **Base64Url Token Padding**: Fixed `atob()` decoding failures in worker runtimes by dynamically appending base64 padding to Google client credential tokens.
+- **Unit Creation Alerts**: Configured Sonner `toast.error` popups in unit creation forms to alert managers of database failures, resolving spinner lock bugs.
+- **Wrangler Environment Safety**: Guarded email dispatcher process env queries to prevent Worker crashes on local server runs.
+
+### 📁 Files Created & Modified
+- **New Files**:
+  - `src/lib/stripe-server.ts`: Stripe session controller server utility.
+  - `.dev.vars.example`: Example environment file.
+- **Modified Files**:
+  - `src/db/queries.ts`: Added `payTenantPaymentWithStripe` query.
+  - `src/routes/tenant.pay.tsx`: Refactored form inputs to Stripe checkout trigger.
+  - `src/routes/auth.oauth-callback.tsx`: Standardized isRedirect check in route catch blocks.
+  - `src/routes/admin.properties.tsx`: Wired toast validations for property/unit creation.
+  - `src/lib/email.ts`: Secured env checks.
+  - `.gitignore`: Ignored client secret credentials.
+
+---
+
+## Progress Log: May 30, 2026 — Brevo Transactional Email Integration
+
+### 🚀 Accomplishments
+Today we integrated Brevo (formerly Sendinblue) as the primary transactional email delivery service. This enables real-world email delivery (for sign-up OTPs, tenant onboarding links, maintenance ticket assignments, and payment receipts) without the strict domain verification restrictions imposed by Resend.
+
+### 1. Multi-Provider Email Architecture
+- **Flexible Configurations**: Updated `src/lib/email.ts` to support both Brevo and Resend integrations.
+- **Auto-Detect Delivery**: The dispatch logic checks for `BREVO_API_KEY` first, falls back to `RESEND_API_KEY` if present, and defaults to print formatted ASCII email bodies in the local developer console if no keys are found.
+- **Brevo SMTP API**: Structured request payloads to target the `/v3/smtp/email` endpoint, complete with custom sender details (`BREVO_SENDER_EMAIL` and `BREVO_SENDER_NAME`).
+
+### 2. Configuration & Typings
+- Added placeholder keys to `.dev.vars.example` and local `.dev.vars` configurations for easy setup.
+- Validated types across the workspace.
+
+### 📁 Files Created & Modified
+- **Modified Files**:
+  - `src/lib/email.ts`: Added `getBrevoConfig` and integrated Brevo API sending logic.
+  - `.dev.vars.example`: Documented new environment keys.
+  - `.dev.vars`: Added local placeholder variables.
+

@@ -9,3 +9,9 @@ STRIPE_SECRET_KEY=sk_test_replace_with_your_stripe_secret_key
 # Google OAuth Credentials (from Google Cloud Console > APIs & Services > Credentials)
 GOOGLE_CLIENT_ID=replace_with_your_google_client_id.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=replace_with_your_google_client_secret
+
+# Brevo Email Configuration (from Brevo Dashboard > SMTP & API)
+BREVO_API_KEY=replace_with_your_brevo_api_key
+BREVO_SENDER_EMAIL=no-reply@propease.com
+BREVO_SENDER_NAME=PropEase
+
