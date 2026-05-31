@@ -20,6 +20,7 @@ import { Route as TenantPayRouteImport } from './routes/tenant.pay'
 import { Route as TenantNotificationsRouteImport } from './routes/tenant.notifications'
 import { Route as TenantMaintenanceRouteImport } from './routes/tenant.maintenance'
 import { Route as TenantDocumentsRouteImport } from './routes/tenant.documents'
+import { Route as PropertyPropertyIdRouteImport } from './routes/property/$propertyId'
 import { Route as AuthOauthCallbackRouteImport } from './routes/auth.oauth-callback'
 import { Route as AdminTenantsRouteImport } from './routes/admin.tenants'
 import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
@@ -84,6 +85,11 @@ const TenantDocumentsRoute = TenantDocumentsRouteImport.update({
   path: '/documents',
   getParentRoute: () => TenantRoute,
 } as any)
+const PropertyPropertyIdRoute = PropertyPropertyIdRouteImport.update({
+  id: '/property/$propertyId',
+  path: '/property/$propertyId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthOauthCallbackRoute = AuthOauthCallbackRouteImport.update({
   id: '/oauth-callback',
   path: '/oauth-callback',
@@ -139,6 +145,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/tenants': typeof AdminTenantsRoute
   '/auth/oauth-callback': typeof AuthOauthCallbackRoute
+  '/property/$propertyId': typeof PropertyPropertyIdRoute
   '/tenant/documents': typeof TenantDocumentsRoute
   '/tenant/maintenance': typeof TenantMaintenanceRoute
   '/tenant/notifications': typeof TenantNotificationsRoute
@@ -158,6 +165,7 @@ export interface FileRoutesByTo {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/tenants': typeof AdminTenantsRoute
   '/auth/oauth-callback': typeof AuthOauthCallbackRoute
+  '/property/$propertyId': typeof PropertyPropertyIdRoute
   '/tenant/documents': typeof TenantDocumentsRoute
   '/tenant/maintenance': typeof TenantMaintenanceRoute
   '/tenant/notifications': typeof TenantNotificationsRoute
@@ -180,6 +188,7 @@ export interface FileRoutesById {
   '/admin/settings': typeof AdminSettingsRoute
   '/admin/tenants': typeof AdminTenantsRoute
   '/auth/oauth-callback': typeof AuthOauthCallbackRoute
+  '/property/$propertyId': typeof PropertyPropertyIdRoute
   '/tenant/documents': typeof TenantDocumentsRoute
   '/tenant/maintenance': typeof TenantMaintenanceRoute
   '/tenant/notifications': typeof TenantNotificationsRoute
@@ -203,6 +212,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/tenants'
     | '/auth/oauth-callback'
+    | '/property/$propertyId'
     | '/tenant/documents'
     | '/tenant/maintenance'
     | '/tenant/notifications'
@@ -222,6 +232,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/tenants'
     | '/auth/oauth-callback'
+    | '/property/$propertyId'
     | '/tenant/documents'
     | '/tenant/maintenance'
     | '/tenant/notifications'
@@ -243,6 +254,7 @@ export interface FileRouteTypes {
     | '/admin/settings'
     | '/admin/tenants'
     | '/auth/oauth-callback'
+    | '/property/$propertyId'
     | '/tenant/documents'
     | '/tenant/maintenance'
     | '/tenant/notifications'
@@ -257,6 +269,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   SearchRoute: typeof SearchRoute
   TenantRoute: typeof TenantRouteWithChildren
+  PropertyPropertyIdRoute: typeof PropertyPropertyIdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -337,6 +350,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/tenant/documents'
       preLoaderRoute: typeof TenantDocumentsRouteImport
       parentRoute: typeof TenantRoute
+    }
+    '/property/$propertyId': {
+      id: '/property/$propertyId'
+      path: '/property/$propertyId'
+      fullPath: '/property/$propertyId'
+      preLoaderRoute: typeof PropertyPropertyIdRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/auth/oauth-callback': {
       id: '/auth/oauth-callback'
@@ -456,6 +476,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   SearchRoute: SearchRoute,
   TenantRoute: TenantRouteWithChildren,
+  PropertyPropertyIdRoute: PropertyPropertyIdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

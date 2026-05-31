@@ -24,3 +24,12 @@ This document tracks all significant modifications and feature additions made to
   - `src/components/search/SearchFilters.tsx`: A robust sidebar of filter inputs, range sliders, and toggles.
   - `src/components/search/PropertySearchCard.tsx`: Display card showcasing rent, location, beds/baths/sqft, and highlight amenities.
   - `src/components/search/PaginationControls.tsx`: Reusable previous/next navigation.
+
+### New Feature: Map View & Nearby Insights System
+- **Location Intelligence Engine**: Built `src/utils/scoring.ts` to calculate a proprietary 100-point location score based on transit (35%), education (25%), healthcare (20%), groceries (10%), and dining (10%). It automatically generates human-readable AI summaries based on amenity density.
+- **Overpass API Integration**: Developed `src/services/overpassService.ts` utilizing a single, highly-optimized Overpass query to fetch 5 categories of Points of Interest (POIs) simultaneously within a 2km radius to avoid API rate limits, featuring exponential backoff retries.
+- **Drizzle Caching Layer**: Engineered a 30-day SQLite caching layer in `src/lib/insights-server.ts` storing results in new `property_insights` and `nearby_places` tables to drastically improve performance and minimize external API hits.
+- **Interactive Leaflet UI**: Implemented `src/components/property/MapView.tsx` using `react-leaflet`, rendering custom color-coded map pins over OpenStreetMap tiles.
+- **Responsive Insight Components**: Developed circular SVG progress scores (`LocationScore.tsx`), grade cards (`InsightCard.tsx`), and a categorized POI list (`NearbyPlaceList.tsx`) neatly assembled inside `NearbyInsights.tsx`.
+- **Dedicated Route**: Created `src/routes/property/$propertyId.tsx` to beautifully showcase the map on the left and the scrollable insights panel on the right (stacked vertically on mobile devices).
+

@@ -1,0 +1,33 @@
+/**
+ * Calculates the great-circle distance between two points on a sphere
+ * using the Haversine formula.
+ * @returns Distance in meters
+ */
+export function calculateDistance(
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number {
+  const R = 6371e3; // Earth radius in meters
+  const p1 = (lat1 * Math.PI) / 180;
+  const p2 = (lat2 * Math.PI) / 180;
+  const dp = ((lat2 - lat1) * Math.PI) / 180;
+  const dl = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dp / 2) * Math.sin(dp / 2) +
+    Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return Math.round(R * c);
+}
+
+export function sortByDistance<T extends { distanceMeters: number }>(places: T[]): T[] {
+  return [...places].sort((a, b) => a.distanceMeters - b.distanceMeters);
+}
+
+export function getClosestPlace<T extends { distanceMeters: number }>(places: T[]): T | null {
+  if (!places || places.length === 0) return null;
+  return sortByDistance(places)[0];
+}

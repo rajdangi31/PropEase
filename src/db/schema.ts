@@ -221,3 +221,34 @@ export const propertyWorkers = sqliteTable("property_workers", {
   pk: primaryKey({ columns: [table.propertyId, table.profileId] }),
 }));
 
+/**
+ * 8. MAP VIEW & NEARBY INSIGHTS
+ */
+export const propertyInsights = sqliteTable("property_insights", {
+  id: text("id").primaryKey(),
+  propertyId: text("property_id").notNull().references(() => properties.id),
+  locationScore: integer("location_score").notNull(),
+  schoolsScore: integer("schools_score").notNull(),
+  healthcareScore: integer("healthcare_score").notNull(),
+  transitScore: integer("transit_score").notNull(),
+  convenienceScore: integer("convenience_score").notNull(),
+  lifestyleScore: integer("lifestyle_score").notNull(),
+  schoolsCount: integer("schools_count").notNull().default(0),
+  hospitalsCount: integer("hospitals_count").notNull().default(0),
+  transitCount: integer("transit_count").notNull().default(0),
+  restaurantsCount: integer("restaurants_count").notNull().default(0),
+  generatedAt: text("generated_at").default(sql`CURRENT_TIMESTAMP`),
+  expiresAt: text("expires_at").notNull(),
+});
+
+export const nearbyPlaces = sqliteTable("nearby_places", {
+  id: text("id").primaryKey(),
+  propertyId: text("property_id").notNull().references(() => properties.id),
+  category: text("category").notNull(),
+  name: text("name").notNull(),
+  distanceMeters: integer("distance_meters").notNull(),
+  latitude: real("latitude").notNull(),
+  longitude: real("longitude").notNull(),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
