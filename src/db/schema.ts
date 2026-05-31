@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, primaryKey } from "drizzle-orm/sqlite-core";
 
 /**
  * 1. IDENTITY & PROFILES
@@ -77,7 +77,9 @@ export const leaseTenants = sqliteTable("lease_tenants", {
   isPrimary: integer("is_primary", { mode: "boolean" }).default(false),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
+}, (table) => ({
+  pk: primaryKey({ columns: [table.leaseId, table.profileId] }),
+}));
 
 /**
  * 4. OPERATIONS (MAINTENANCE & PAYMENTS)
@@ -203,5 +205,7 @@ export const propertyWorkers = sqliteTable("property_workers", {
   propertyId: text("property_id").notNull().references(() => properties.id),
   profileId: text("profile_id").notNull().references(() => profiles.id),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-});
+}, (table) => ({
+  pk: primaryKey({ columns: [table.propertyId, table.profileId] }),
+}));
 

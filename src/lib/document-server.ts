@@ -150,6 +150,31 @@ export const getTenantDocumentsFn = createServerFn({ method: "GET" })
     if (session.role !== "landlord" && session.role !== "manager") {
       throw new Error("Only landlords and managers can view tenant documents.");
     }
+    
+    if (session.role === "landlord") {
+      const { getDb } = await import("../db/index");
+      const { properties, units, leases, leaseTenants } = await import("../db/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const db = await getDb();
+      
+      const links = await db.select()
+        .from(leaseTenants)
+        .innerJoin(leases, eq(leaseTenants.leaseId, leases.id))
+        .innerJoin(units, eq(leases.unitId, units.id))
+        .innerJoin(properties, eq(units.propertyId, properties.id))
+        .where(
+          and(
+            eq(leaseTenants.profileId, ctx.data.tenantId),
+            eq(properties.landlordId, session.id)
+          )
+        )
+        .limit(1);
+
+      if (links.length === 0) {
+        throw new Error("Unauthorized: Tenant does not belong to any of your properties.");
+      }
+    }
+
     return getDocumentsByTenant(ctx.data.tenantId);
   });
 

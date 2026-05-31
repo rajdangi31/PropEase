@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
+import { z } from "zod";
 import { verifySession } from "./auth-crypto";
 import {
   getTenantsByLandlord, getMaintenanceByLandlord, getMaintenanceByTenant,
@@ -49,7 +50,7 @@ export const getMyMaintenanceAsTenantFn = createServerFn({ method: "GET" })
   });
 
 export const createMaintenanceRequestFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { title: string; description: string; priority: string; category: string }) => d)
+  .inputValidator(z.object({ title: z.string(), description: z.string(), priority: z.string(), category: z.string() }))
   .handler(async (ctx: any) => {
     const data = ctx.data;
     const session = await requireAuth();
@@ -139,12 +140,12 @@ export const getAssignableWorkersFn = createServerFn({ method: "GET" })
   });
 
 export const updateMaintenanceRequestFn = createServerFn({ method: "POST" })
-  .inputValidator((d: {
-    id: string;
-    status?: "pending" | "in_progress" | "resolved_pending" | "resolved";
-    priority?: "low" | "medium" | "high" | "emergency";
-    assignedWorkerId?: string | null;
-  }) => d)
+  .inputValidator(z.object({
+    id: z.string(),
+    status: z.enum(["pending", "in_progress", "resolved_pending", "resolved"]).optional(),
+    priority: z.enum(["low", "medium", "high", "emergency"]).optional(),
+    assignedWorkerId: z.string().nullable().optional(),
+  }))
   .handler(async (ctx: any) => {
     const session = await requireAuth();
     const data = ctx.data;
@@ -271,7 +272,7 @@ export const getMyNotificationsFn = createServerFn({ method: "GET" })
   });
 
 export const markNotificationReadFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { id: string }) => d)
+  .inputValidator(z.object({ id: z.string() }))
   .handler(async (ctx: any) => {
     const session = await requireAuth();
     return markNotificationRead(ctx.data.id, session.id);
@@ -284,7 +285,7 @@ export const markAllNotificationsReadFn = createServerFn({ method: "POST" })
   });
 
 export const broadcastAnnouncementFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { propertyId: string | null; title: string; body: string }) => d)
+  .inputValidator(z.object({ propertyId: z.string().nullable(), title: z.string(), body: z.string() }))
   .handler(async (ctx: any) => {
     const session = await requireAuth();
     if (session.role !== "landlord") {
@@ -311,7 +312,7 @@ export const getTenantDashboardFn = createServerFn({ method: "GET" })
   });
 
 export const payRentFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { cardNumber: string }) => d)
+  .inputValidator(z.object({ cardNumber: z.string() }))
   .handler(async (ctx: any) => {
     const session = await requireAuth();
     if (session.role !== "tenant") throw new Error("Only tenants can pay rent.");
@@ -331,7 +332,7 @@ export const generateRentInvoicesFn = createServerFn({ method: "POST" })
   });
 
 export const getMaintenanceLogsFn = createServerFn({ method: "GET" })
-  .inputValidator((d: { requestId: string }) => d)
+  .inputValidator(z.object({ requestId: z.string() }))
   .handler(async (ctx: any) => {
     const session = await requireAuth();
     const { requestId } = ctx.data;
@@ -381,7 +382,7 @@ export const getMaintenanceLogsFn = createServerFn({ method: "GET" })
   });
 
 export const addMaintenanceLogFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { requestId: string; content: string; isInternal: boolean }) => d)
+  .inputValidator(z.object({ requestId: z.string(), content: z.string(), isInternal: z.boolean() }))
   .handler(async (ctx: any) => {
     const session = await requireAuth();
     const { requestId, content, isInternal } = ctx.data;
@@ -447,13 +448,13 @@ export const getLandlordActiveLeasesFn = createServerFn({ method: "GET" })
   });
 
 export const createManualPaymentFn = createServerFn({ method: "POST" })
-  .inputValidator((d: {
-    leaseId: string;
-    tenantId: string;
-    amount: number;
-    category: "rent" | "deposit" | "utility" | "late_fee";
-    paidDate: string;
-  }) => d)
+  .inputValidator(z.object({
+    leaseId: z.string(),
+    tenantId: z.string(),
+    amount: z.number(),
+    category: z.enum(["rent", "deposit", "utility", "late_fee"]),
+    paidDate: z.string(),
+  }))
   .handler(async (ctx: any) => {
     const session = await requireAuth();
     if (session.role !== "landlord") throw new Error("Only landlords can log manual payments.");
@@ -461,7 +462,7 @@ export const createManualPaymentFn = createServerFn({ method: "POST" })
   });
 
 export const terminateLeaseFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { leaseId: string }) => d)
+  .inputValidator(z.object({ leaseId: z.string() }))
   .handler(async (ctx: any) => {
     const session = await requireAuth();
     if (session.role !== "landlord" && session.role !== "manager") {
@@ -471,7 +472,7 @@ export const terminateLeaseFn = createServerFn({ method: "POST" })
   });
 
 export const renewLeaseFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { leaseId: string; newEndDate: string; newRent: number }) => d)
+  .inputValidator(z.object({ leaseId: z.string(), newEndDate: z.string(), newRent: z.number() }))
   .handler(async (ctx: any) => {
     const session = await requireAuth();
     if (session.role !== "landlord" && session.role !== "manager") {

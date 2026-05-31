@@ -9,6 +9,9 @@ export const Route = createFileRoute("/tenant")({
     if (!user) {
       throw redirect({ to: "/auth" });
     }
+    if (user.role !== "tenant") {
+      throw redirect({ to: "/admin" });
+    }
     const notifications = await getMyNotificationsFn();
     return { user, notifications };
   },

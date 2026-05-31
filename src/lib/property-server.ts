@@ -77,9 +77,15 @@ export const getUnitsFn = createServerFn({ method: "GET" })
     const data = ctx.data;
     const session = await requireAuth();
 
-    // The query layer will return units for the given property.
-    // Ownership is enforced because the property was created with the landlord's ID,
-    // and the UI only shows properties the landlord owns.
+    if (session.role === "landlord") {
+      const { getDb } = await import("../db/index");
+      const { properties } = await import("../db/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const db = await getDb();
+      const [property] = await db.select().from(properties).where(and(eq(properties.id, data.propertyId), eq(properties.landlordId, session.id))).limit(1);
+      if (!property) throw new Error("Unauthorized to access units for this property.");
+    }
+
     return getUnitsByProperty(data.propertyId);
   });
 
@@ -98,6 +104,15 @@ export const createUnitFn = createServerFn({ method: "POST" })
   .handler(async (ctx: any) => {
     const data = ctx.data;
     const session = await requireAuth();
+
+    if (session.role === "landlord") {
+      const { getDb } = await import("../db/index");
+      const { properties } = await import("../db/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const db = await getDb();
+      const [property] = await db.select().from(properties).where(and(eq(properties.id, data.propertyId), eq(properties.landlordId, session.id))).limit(1);
+      if (!property) throw new Error("Unauthorized to create units in this property.");
+    }
 
     const id = crypto.randomUUID();
     const unit = await dbCreateUnit({
@@ -163,6 +178,15 @@ export const createInviteFn = createServerFn({ method: "POST" })
   .handler(async (ctx: any) => {
     const data = ctx.data;
     const session = await requireAuth();
+
+    if (session.role === "landlord") {
+      const { getDb } = await import("../db/index");
+      const { properties } = await import("../db/schema");
+      const { eq, and } = await import("drizzle-orm");
+      const db = await getDb();
+      const [property] = await db.select().from(properties).where(and(eq(properties.id, data.propertyId), eq(properties.landlordId, session.id))).limit(1);
+      if (!property) throw new Error("Unauthorized to invite users for this property.");
+    }
 
     const id = crypto.randomUUID();
     // Expiry 7 days from now

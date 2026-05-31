@@ -14,7 +14,7 @@ async function getJwtSecret(): Promise<string> {
     } catch {
       // Fallback if proxy retrieval fails
     }
-    return "your-super-secret-key-replace-in-production";
+    throw new Error("JWT_SECRET is not configured in the environment.");
   }
 
   // Retrieve Cloudflare env bindings from the custom server entry context or fallbacks
@@ -44,7 +44,10 @@ async function getJwtSecret(): Promise<string> {
   }
 
   const secret = env.JWT_SECRET || (typeof process !== "undefined" ? process.env.JWT_SECRET : (globalThis as any)?.JWT_SECRET);
-  return secret || "your-super-secret-key-replace-in-production";
+  if (!secret) {
+    throw new Error("JWT_SECRET is not configured in the environment.");
+  }
+  return secret;
 }
 
 /**

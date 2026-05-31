@@ -1,4 +1,4 @@
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { getDb } from "./index";
 import {
   profiles,
@@ -708,13 +708,13 @@ export async function broadcastAnnouncement(
       const activeLeases = await db
         .select({ id: leases.id })
         .from(leases)
-        .where(and(eq(leases.status, "active"), sql`${leases.unitId} IN (${sql.raw(unitIds.map((id: string) => `'${id}'`).join(","))})`));
+        .where(and(eq(leases.status, "active"), inArray(leases.unitId, unitIds)));
       const leaseIds = activeLeases.map((l: { id: string }) => l.id);
       if (leaseIds.length > 0) {
         const links = await db
           .select({ profileId: leaseTenants.profileId })
           .from(leaseTenants)
-          .where(sql`${leaseTenants.leaseId} IN (${sql.raw(leaseIds.map((id: string) => `'${id}'`).join(","))})`);
+          .where(inArray(leaseTenants.leaseId, leaseIds));
         targetTenantIds = Array.from(new Set(links.map((link: { profileId: string }) => link.profileId)));
       }
     }
@@ -726,19 +726,19 @@ export async function broadcastAnnouncement(
       const unitsList = await db
         .select({ id: units.id })
         .from(units)
-        .where(sql`${units.propertyId} IN (${sql.raw(propIds.map((id: string) => `'${id}'`).join(","))})`);
+        .where(inArray(units.propertyId, propIds));
       const unitIds = unitsList.map((u: { id: string }) => u.id);
       if (unitIds.length > 0) {
         const activeLeases = await db
           .select({ id: leases.id })
           .from(leases)
-          .where(and(eq(leases.status, "active"), sql`${leases.unitId} IN (${sql.raw(unitIds.map((id: string) => `'${id}'`).join(","))})`));
+          .where(and(eq(leases.status, "active"), inArray(leases.unitId, unitIds)));
         const leaseIds = activeLeases.map((l: { id: string }) => l.id);
         if (leaseIds.length > 0) {
           const links = await db
             .select({ profileId: leaseTenants.profileId })
             .from(leaseTenants)
-            .where(sql`${leaseTenants.leaseId} IN (${sql.raw(leaseIds.map((id: string) => `'${id}'`).join(","))})`);
+            .where(inArray(leaseTenants.leaseId, leaseIds));
           targetTenantIds = Array.from(new Set(links.map((link: { profileId: string }) => link.profileId)));
         }
       }
