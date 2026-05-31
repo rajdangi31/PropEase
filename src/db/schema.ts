@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { sqliteTable, text, integer, real, primaryKey } from "drizzle-orm/sqlite-core";
+import { sqliteTable, text, integer, real, primaryKey, index } from "drizzle-orm/sqlite-core";
 
 /**
  * 1. IDENTITY & PROFILES
@@ -32,10 +32,15 @@ export const properties = sqliteTable("properties", {
   address: text("address").notNull(),
   latitude: real("latitude"),
   longitude: real("longitude"),
+  city: text("city"),
+  locality: text("locality"),
   description: text("description"),
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
+}, (table) => ({
+  cityIdx: index("city_idx").on(table.city),
+  localityIdx: index("locality_idx").on(table.locality),
+}));
 
 export const units = sqliteTable("units", {
   id: text("id").primaryKey(),
@@ -49,10 +54,17 @@ export const units = sqliteTable("units", {
   beds: integer("beds"),
   baths: integer("baths"),
   occupantsLimit: integer("occupants_limit"),
+  furnishedStatus: text("furnished_status", { 
+    enum: ["unfurnished", "semi-furnished", "fully-furnished"] 
+  }).default("unfurnished"),
   amenities: text("amenities"), // JSON array of strings
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
+}, (table) => ({
+  statusIdx: index("status_idx").on(table.status),
+  rentIdx: index("rent_idx").on(table.currentMarketRent),
+  bedsIdx: index("beds_idx").on(table.beds),
+}));
 
 /**
  * 3. LEASES & TENANCY
