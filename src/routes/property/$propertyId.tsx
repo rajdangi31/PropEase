@@ -1,8 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { usePropertyInsights } from "@/hooks/usePropertyInsights";
 import { useNearbyPlaces } from "@/hooks/useNearbyPlaces";
+import { useRentPrediction } from "@/hooks/useRentPrediction";
 import { MapView } from "@/components/property/MapView";
 import { NearbyInsights } from "@/components/property/NearbyInsights";
+import { PricePredictionCard } from "@/components/pricing/PricePredictionCard";
 import { Loader2, MapPin } from "lucide-react";
 
 export const Route = createFileRoute("/property/$propertyId")({
@@ -14,6 +16,9 @@ function PropertyMapInsightsPage() {
   
   const { data, isLoading, isError, error } = usePropertyInsights(propertyId);
   const placesHook = useNearbyPlaces(data?.places || []);
+  
+  const firstUnit = data?.units?.[0];
+  const { data: rentData, isLoading: rentLoading } = useRentPrediction(firstUnit?.id || "");
 
   if (isLoading) {
     return (
@@ -52,6 +57,16 @@ function PropertyMapInsightsPage() {
           Neighborhood Map & Insights
         </p>
       </div>
+
+      {firstUnit && (
+        <div className="mb-8 flex justify-center lg:justify-start">
+          {rentLoading ? (
+            <div className="w-full max-w-xl animate-pulse bg-muted/50 border border-border h-[400px] rounded-xl" />
+          ) : rentData ? (
+            <PricePredictionCard predictionData={rentData} />
+          ) : null}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-5 gap-8 h-full min-h-[600px]">
         {/* Map View - Takes up more space on large screens */}

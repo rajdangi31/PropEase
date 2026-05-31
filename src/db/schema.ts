@@ -57,6 +57,9 @@ export const units = sqliteTable("units", {
   furnishedStatus: text("furnished_status", { 
     enum: ["unfurnished", "semi-furnished", "fully-furnished"] 
   }).default("unfurnished"),
+  parking: integer("parking", { mode: "boolean" }).default(false),
+  balconyCount: integer("balcony_count").default(0),
+  propertyAge: integer("property_age").default(0),
   amenities: text("amenities"), // JSON array of strings
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
@@ -249,6 +252,33 @@ export const nearbyPlaces = sqliteTable("nearby_places", {
   distanceMeters: integer("distance_meters").notNull(),
   latitude: real("latitude").notNull(),
   longitude: real("longitude").notNull(),
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
+/**
+ * 9. AI RENT ESTIMATION
+ */
+export const localityStats = sqliteTable("locality_stats", {
+  id: text("id").primaryKey(),
+  city: text("city").notNull(),
+  locality: text("locality").notNull(),
+  avgPricePerSqft: integer("avg_price_per_sqft").notNull(), // in cents
+  minPricePerSqft: integer("min_price_per_sqft").notNull(),
+  maxPricePerSqft: integer("max_price_per_sqft").notNull(),
+  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+}, (table) => ({
+  localityCityIdx: index("locality_city_idx").on(table.city, table.locality),
+}));
+
+export const rentPredictions = sqliteTable("rent_predictions", {
+  id: text("id").primaryKey(),
+  propertyId: text("property_id").notNull().references(() => properties.id),
+  unitId: text("unit_id").references(() => units.id),
+  predictedRent: integer("predicted_rent").notNull(),
+  minEstimate: integer("min_estimate").notNull(),
+  maxEstimate: integer("max_estimate").notNull(),
+  confidenceScore: integer("confidence_score").notNull(),
+  explanation: text("explanation"), // JSON array of strings
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 

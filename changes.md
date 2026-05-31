@@ -33,3 +33,12 @@ This document tracks all significant modifications and feature additions made to
 - **Responsive Insight Components**: Developed circular SVG progress scores (`LocationScore.tsx`), grade cards (`InsightCard.tsx`), and a categorized POI list (`NearbyPlaceList.tsx`) neatly assembled inside `NearbyInsights.tsx`.
 - **Dedicated Route**: Created `src/routes/property/$propertyId.tsx` to beautifully showcase the map on the left and the scrollable insights panel on the right (stacked vertically on mobile devices).
 
+### New Feature: AI Rent Estimation & Pricing Intelligence
+- **Data Model Extensions**: Added `parking`, `balcony_count`, and `property_age` natively to the `units` table to enable deterministic pricing analysis without JSON parsing overhead. Added `locality_stats` and `rent_predictions` to cache estimates.
+- **Dynamic Pricing Service**: Built `src/services/predictionService.ts` to dynamically calculate average `rent/sqft` from existing local listings, continuously self-improving the model's baseline as more properties are added.
+- **Real Comparables Queries**: Engineered an active query system in the prediction service that fetches real nearby properties matching the same property type, ±1 bedroom, and ±20% area.
+- **Transparent AI Pricing Rules**: Authored a deterministic pricing engine (`src/utils/pricingRules.ts`) that applies stacked multipliers (+10% for furnished, +8% near metro, -10% for old properties) onto the baseline rent.
+- **AI Explanation Generator**: Automatically builds human-readable explanations summarizing the key factors driving a property's estimated price.
+- **Confidence Scoring Engine**: Evaluates prediction accuracy dynamically based on data completeness (40%), comparable listing density (40%), and location intelligence availability (20%).
+- **Interactive UI Components**: Developed a stunning suite of pricing components (`PricePredictionCard`, `PriceFairnessMeter`, `RentRangeChart`, `ConfidenceMeter`, `ComparableProperties`) seamlessly integrated into the top of the `/property/$propertyId` route.
+

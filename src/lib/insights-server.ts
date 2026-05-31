@@ -38,6 +38,8 @@ export const getPropertyInsightsFn = createServerFn({ method: "GET" })
         .from(nearbyPlaces)
         .where(eq(nearbyPlaces.propertyId, propertyId));
         
+      const propertyUnits = await db.select().from(units).where(eq(units.propertyId, propertyId));
+        
       // Recalculate summary and grades dynamically from cached counts
       const scoreResult = calculateLocationScore(
         existingInsight.schoolsCount,
@@ -62,7 +64,8 @@ export const getPropertyInsightsFn = createServerFn({ method: "GET" })
           lat: property.lat,
           lon: property.lon,
           name: property.name,
-        }
+        },
+        units: propertyUnits,
       };
     }
 
@@ -127,6 +130,8 @@ export const getPropertyInsightsFn = createServerFn({ method: "GET" })
     if (dbPlaces.length > 0) {
       await db.insert(nearbyPlaces).values(dbPlaces);
     }
+    
+    const propertyUnits = await db.select().from(units).where(eq(units.propertyId, propertyId));
 
     return {
       insights: newInsight,
@@ -143,6 +148,7 @@ export const getPropertyInsightsFn = createServerFn({ method: "GET" })
         lat: property.lat,
         lon: property.lon,
         name: property.name,
-      }
+      },
+      units: propertyUnits,
     };
   });
