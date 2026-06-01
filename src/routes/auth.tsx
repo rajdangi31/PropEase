@@ -7,7 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { signInFn, requestSignUpOtpFn, verifyOtpAndSignUpFn } from "@/lib/auth-server";
+import {
+  signInFn,
+  requestSignUpOtpFn,
+  verifyOtpAndSignUpFn,
+  requestPasswordResetOtpFn,
+  resetPasswordWithOtpFn,
+} from "@/lib/auth-server";
 import { getGoogleAuthUrlFn } from "@/lib/oauth-server";
 import { getInviteDetailsFn } from "@/lib/property-server";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
@@ -59,10 +65,15 @@ function AuthPage() {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [error, setError] = useState(search.error || inviteError || "");
+  const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   
   const [isVerifying, setIsVerifying] = useState(false);
   const [otp, setOtp] = useState("");
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
+  const [isResetCodeSent, setIsResetCodeSent] = useState(false);
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
 
   const defaultTab = inviteDetails
     ? (inviteDetails.emailExists ? "signin" : "signup")
@@ -77,6 +88,7 @@ function AuthPage() {
 
   const handleGoogleSignIn = async () => {
     setError("");
+    setSuccessMessage("");
     setIsLoading(true);
     try {
       const result = await getGoogleAuthUrlFn({ data: { inviteToken } });
@@ -91,6 +103,7 @@ function AuthPage() {
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
     setIsLoading(true);
     try {
       const result = await signInFn({ data: { email, password, inviteToken } });
@@ -108,6 +121,7 @@ function AuthPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
 
     if (!email.toLowerCase().endsWith("@gmail.com")) {
       setError("Currently, we only accept @gmail.com email addresses.");
@@ -128,6 +142,7 @@ function AuthPage() {
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    setSuccessMessage("");
     setIsLoading(true);
     try {
       const result = await verifyOtpAndSignUpFn({ data: { email, code: otp } });
@@ -136,6 +151,43 @@ function AuthPage() {
       navigate({ to: target });
     } catch (err: any) {
       setError(err.message || "Invalid verification code");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleRequestPasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccessMessage("");
+    setIsLoading(true);
+    try {
+      await requestPasswordResetOtpFn({ data: { email } });
+      setIsResetCodeSent(true);
+      setSuccessMessage("If your account exists, a reset code has been sent to your email.");
+    } catch (err: any) {
+      setError(err.message || "Failed to send reset code.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setSuccessMessage("");
+    setIsLoading(true);
+    try {
+      await resetPasswordWithOtpFn({ data: { email, code: resetCode, newPassword } });
+      setSuccessMessage("Password reset successful. You can now sign in.");
+      setIsResettingPassword(false);
+      setIsResetCodeSent(false);
+      setResetCode("");
+      setNewPassword("");
+      setPassword("");
+      setActiveTab("signin");
+    } catch (err: any) {
+      setError(err.message || "Failed to reset password.");
     } finally {
       setIsLoading(false);
     }
@@ -237,41 +289,93 @@ function AuthPage() {
                 </TabsList>
 
                 <TabsContent value="signin" className="mt-6">
-                  <form className="space-y-4" onSubmit={handleSignIn}>
+                  <form className="space-y-4" onSubmit={isResettingPassword ? (isResetCodeSent ? handleResetPassword : handleRequestPasswordReset) : handleSignIn}>
                     {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+                    {successMessage && <div className="rounded-md bg-green-500/15 p-3 text-sm text-green-700 dark:text-green-400">{successMessage}</div>}
                     <div className="space-y-1.5">
                       <Label htmlFor="email">Email</Label>
                       <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="password">Password</Label>
-                      <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-                    </div>
-                    <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
-                      {isLoading ? "Signing in..." : "Sign in"}
-                    </Button>
+                    {!isResettingPassword ? (
+                      <>
+                        <div className="space-y-1.5">
+                          <Label htmlFor="password">Password</Label>
+                          <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                        </div>
+                        <button
+                          type="button"
+                          className="text-sm text-accent hover:underline"
+                          onClick={() => {
+                            setError("");
+                            setSuccessMessage("");
+                            setIsResettingPassword(true);
+                            setIsResetCodeSent(false);
+                            setResetCode("");
+                            setNewPassword("");
+                          }}
+                        >
+                          Forgot password?
+                        </button>
+                        <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
+                          {isLoading ? "Signing in..." : "Sign in"}
+                        </Button>
 
-                    <div className="relative my-4">
-                      <div className="absolute inset-0 flex items-center">
-                        <span className="w-full border-t" />
-                      </div>
-                      <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
-                      </div>
-                    </div>
+                        <div className="relative my-4">
+                          <div className="absolute inset-0 flex items-center">
+                            <span className="w-full border-t" />
+                          </div>
+                          <div className="relative flex justify-center text-xs uppercase">
+                            <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                          </div>
+                        </div>
 
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="h-11 w-full text-base"
-                      disabled={isLoading}
-                      onClick={handleGoogleSignIn}
-                    >
-                      <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
-                        <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
-                      </svg>
-                      Google
-                    </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-11 w-full text-base"
+                          disabled={isLoading}
+                          onClick={handleGoogleSignIn}
+                        >
+                          <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
+                            <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+                          </svg>
+                          Google
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        {isResetCodeSent && (
+                          <>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="reset-code">Verification code</Label>
+                              <Input id="reset-code" value={resetCode} onChange={(e) => setResetCode(e.target.value)} required />
+                            </div>
+                            <div className="space-y-1.5">
+                              <Label htmlFor="new-password">New password</Label>
+                              <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+                            </div>
+                          </>
+                        )}
+                        <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
+                          {isLoading ? "Please wait..." : isResetCodeSent ? "Reset password" : "Send reset code"}
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          className="w-full text-sm text-muted-foreground"
+                          onClick={() => {
+                            setError("");
+                            setSuccessMessage("");
+                            setIsResettingPassword(false);
+                            setIsResetCodeSent(false);
+                            setResetCode("");
+                            setNewPassword("");
+                          }}
+                        >
+                          ← Back to sign in
+                        </Button>
+                      </>
+                    )}
                   </form>
                 </TabsContent>
 
