@@ -164,6 +164,9 @@ export const verifyOtpAndSignUpFn = createServerFn({ method: "POST" })
     }
 
     const payload = JSON.parse(record.signupData);
+    if (payload?.type === "password_reset") {
+      throw new Error("This verification code is for password reset.");
+    }
     const id = crypto.randomUUID();
 
     const { createProfile } = await import("../db/queries");
@@ -203,6 +206,104 @@ export const verifyOtpAndSignUpFn = createServerFn({ method: "POST" })
     });
 
     return { success: true, profile: { id: finalProfile.id, email: finalProfile.email, role: finalProfile.role } };
+  });
+
+export const requestPasswordResetOtpFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { email: string }) => d)
+  .handler(async (ctx: any) => {
+    const data = ctx.data;
+    const normalizedEmail = data.email.toLowerCase();
+
+    const { getProfileByEmail } = await import("../db/queries");
+    const profile = await getProfileByEmail(normalizedEmail);
+    if (!profile) {
+      return { success: true };
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    const { getDb } = await import("../db/index");
+    const { verificationCodes } = await import("../db/schema");
+    const { eq } = await import("drizzle-orm");
+    const db = await getDb();
+
+    await db.delete(verificationCodes).where(eq(verificationCodes.email, normalizedEmail));
+    await db.insert(verificationCodes).values({
+      email: normalizedEmail,
+      code,
+      expiresAt,
+      signupData: JSON.stringify({ type: "password_reset", profileId: profile.id }),
+    });
+
+    try {
+      const { sendEmail } = await import("./email");
+      const subject = "Reset your PropEase password";
+      const text = `Use this verification code to reset your PropEase password.
+
+Verification Code: ${code}
+
+This code will expire in 15 minutes.`;
+
+      const html = `<div style="font-family: sans-serif; max-width: 500px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);">
+  <h2 style="color: #4f46e5; margin-top: 0;">Reset your password</h2>
+  <p style="color: #334155; font-size: 15px; line-height: 1.5;">Use the verification code below to reset your PropEase password.</p>
+  <div style="background-color: #f8fafc; border: 1px dashed #cbd5e1; border-radius: 6px; padding: 16px; text-align: center; margin: 24px 0;">
+    <span style="font-size: 28px; font-weight: bold; letter-spacing: 4px; color: #0f172a;">${code}</span>
+  </div>
+  <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin-bottom: 0;">This code will expire in 15 minutes. If you did not request a password reset, you can safely ignore this email.</p>
+</div>`;
+
+      await sendEmail({ to: normalizedEmail, subject, html, text });
+    } catch (err) {
+      console.error("Failed to dispatch password reset email:", err);
+    }
+
+    return { success: true };
+  });
+
+export const resetPasswordWithOtpFn = createServerFn({ method: "POST" })
+  .inputValidator((d: { email: string; code: string; newPassword: string }) => d)
+  .handler(async (ctx: any) => {
+    const data = ctx.data;
+    const normalizedEmail = data.email.toLowerCase();
+
+    const { getDb } = await import("../db/index");
+    const { verificationCodes } = await import("../db/schema");
+    const { eq } = await import("drizzle-orm");
+    const db = await getDb();
+
+    const [record] = await db
+      .select()
+      .from(verificationCodes)
+      .where(eq(verificationCodes.email, normalizedEmail))
+      .limit(1);
+
+    if (!record) {
+      throw new Error("No password reset request pending.");
+    }
+
+    if (record.code !== data.code && !(import.meta.env.DEV && data.code === "000000")) {
+      throw new Error("Invalid verification code.");
+    }
+
+    if (new Date() > new Date(record.expiresAt)) {
+      await db.delete(verificationCodes).where(eq(verificationCodes.email, normalizedEmail));
+      throw new Error("Verification code has expired.");
+    }
+
+    const payload = JSON.parse(record.signupData);
+    if (payload?.type !== "password_reset" || !payload.profileId) {
+      throw new Error("Invalid password reset request.");
+    }
+
+    const { hashPassword } = await import("./auth-crypto");
+    const passwordHash = await hashPassword(data.newPassword);
+    const { updateProfile } = await import("../db/queries");
+    await updateProfile(payload.profileId, { passwordHash });
+
+    await db.delete(verificationCodes).where(eq(verificationCodes.email, normalizedEmail));
+    return { success: true };
   });
 
 export const signInFn = createServerFn({ method: "POST" })
