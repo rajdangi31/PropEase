@@ -299,8 +299,8 @@ ${detailsText ? `<pre>${detailsText}</pre>` : ""}
 <p>This invitation link expires in 7 days.</p>
 <p>Best regards,<br/>The PropEase Team</p>`;
 
-        const { sendEmail } = await import("./email");
-        await sendEmail({ to: data.email, subject, html, text });
+        const { enqueueEmail } = await import("./email-queue");
+        enqueueEmail({ to: data.email, subject, html, text });
       } catch (err) {
         console.error("Failed to send invitation email:", err);
       }

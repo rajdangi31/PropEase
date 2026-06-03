@@ -58,19 +58,28 @@ import { getMyPropertiesFn } from "@/lib/property-server";
 import { InviteTenantModal } from "@/components/admin/InviteTenantModal";
 import type { TenantRow } from "@/db/queries";
 
+import { z } from "zod";
+
 export const Route = createFileRoute("/admin/tenants")({
-  loader: async () => {
-    const tenants = await getMyTenantsFn();
+  validateSearch: z.object({
+    page: z.number().catch(1),
+    limit: z.number().catch(50),
+    q: z.string().catch(""),
+  }),
+  loaderDeps: ({ search: { page, limit, q } }) => ({ page, limit, q }),
+  loader: async ({ deps: { page, limit, q } }) => {
+    const tenantsData = await getMyTenantsFn({ data: { page, limit, q } });
     const properties = await getMyPropertiesFn();
-    return { tenants, properties };
+    return { tenants: tenantsData.data, total: tenantsData.total, page, limit, q, properties };
   },
   component: TenantsPage,
 });
 
 function TenantsPage() {
-  const { tenants, properties } = Route.useLoaderData();
+  const { tenants, total, page, limit, q: initialQ, properties } = Route.useLoaderData();
   const router = useRouter();
-  const [q, setQ] = useState("");
+  const navigate = Route.useNavigate();
+  const [q, setQ] = useState(initialQ);
   const [selectedTenantForDocs, setSelectedTenantForDocs] = useState<TenantRow | null>(null);
   const [tenantDocs, setTenantDocs] = useState<any[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
@@ -92,9 +101,15 @@ function TenantsPage() {
   const [isRenewing, setIsRenewing] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
 
-  const filtered = tenants.filter((t) =>
-    [t.name, t.email, t.unit].some((v) => v.toLowerCase().includes(q.toLowerCase())),
-  );
+  // Debounce search update to URL
+  useEffect(() => {
+    const t = setTimeout(() => {
+      router.navigate({ to: ".", search: { page: 1, limit, q }, replace: true });
+    }, 300);
+    return () => clearTimeout(t);
+  }, [q, limit]); // We omit router.navigate to avoid dependency issues if router isn't stable
+
+  const totalPages = Math.ceil(total / limit);
 
   const handleViewDocuments = async (tenant: TenantRow) => {
     setSelectedTenantForDocs(tenant);
@@ -112,14 +127,42 @@ function TenantsPage() {
   const handleDownload = async (id: string) => {
     setDownloadingId(id);
     try {
-      const fileData = await downloadDocumentFn({ data: { id } });
-      const link = document.createElement("a");
-      link.href = `data:${fileData.contentType};base64,${fileData.content}`;
-      link.download = fileData.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success("Download started.");
+      const response = await downloadDocumentFn({ data: { id } }) as unknown as Response;
+      
+      // The server function now returns a Response containing the file stream
+      if (response instanceof Response) {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const blob = await response.blob();
+        
+        // Extract filename from Content-Disposition header if possible
+        const contentDisposition = response.headers.get("Content-Disposition");
+        let filename = "document";
+        if (contentDisposition && contentDisposition.includes("filename=")) {
+          filename = contentDisposition.split("filename=")[1].replace(/"/g, "");
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        // Fallback if the interceptor unwrapped it to something else
+        const fileData = response as any;
+        if (fileData.content) {
+          const link = document.createElement("a");
+          link.href = `data:${fileData.contentType};base64,${fileData.content}`;
+          link.download = fileData.name || "document";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
+      
+      toast.success("Download complete.");
     } catch (err: any) {
       toast.error(err.message || "Failed to download document.");
     } finally {
@@ -192,7 +235,7 @@ function TenantsPage() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight font-display">Tenants</h2>
           <p className="text-sm text-muted-foreground font-medium">
-            {tenants.length} active across your portfolio
+            {total} active across your portfolio
           </p>
         </div>
         <InviteTenantModal properties={properties} />
@@ -234,7 +277,7 @@ function TenantsPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((t, i) => (
+                {tenants.map((t, i) => (
                   <TableRow key={t.id} className="hover:bg-muted/5 transition-colors">
                     <TableCell className="py-3">
                       <div className="flex items-center gap-3">
@@ -318,7 +361,7 @@ function TenantsPage() {
                     </TableCell>
                   </TableRow>
                 ))}
-                {filtered.length === 0 && (
+                {tenants.length === 0 && (
                   <TableRow>
                     <TableCell
                       colSpan={6}
@@ -330,6 +373,32 @@ function TenantsPage() {
                 )}
               </TableBody>
             </Table>
+            
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between border-t border-border/50 p-4">
+                <p className="text-sm text-muted-foreground">
+                  Showing {(page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total} tenants
+                </p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => navigate({ search: { page: page - 1, limit, q }, replace: true })}
+                  >
+                    Previous
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => navigate({ search: { page: page + 1, limit, q }, replace: true })}
+                  >
+                    Next
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

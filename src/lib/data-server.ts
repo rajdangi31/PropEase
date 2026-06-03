@@ -41,20 +41,39 @@ async function requireAuth() {
 
 // ─── Tenants ───────────────────────────────────────────────
 
-export const getMyTenantsFn = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await requireAuth();
-  return getTenantsByLandlord(session.id);
-});
+
+export const getMyTenantsFn = createServerFn({ method: "GET" })
+  .inputValidator(
+    z.object({
+      page: z.number().optional(),
+      limit: z.number().optional(),
+      q: z.string().optional(),
+    }).optional()
+  )
+  .handler(async (ctx) => {
+    const session = await requireAuth();
+    const data = ctx.data || {};
+    return getTenantsByLandlord(session.id, data.page, data.limit, data.q);
+  });
 
 // ─── Maintenance ───────────────────────────────────────────
 
-export const getMyMaintenanceFn = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await requireAuth();
-  if (session.role === "maintenance" || session.role === "service") {
-    return getMaintenanceByWorker(session.id);
-  }
-  return getMaintenanceByLandlord(session.id);
-});
+export const getMyMaintenanceFn = createServerFn({ method: "GET" })
+  .inputValidator(
+    z.object({
+      page: z.number().optional(),
+      limit: z.number().optional(),
+      q: z.string().optional(),
+    }).optional()
+  )
+  .handler(async (ctx) => {
+    const session = await requireAuth();
+    const data = ctx.data || {};
+    if (session.role === "maintenance" || session.role === "service") {
+      return getMaintenanceByWorker(session.id, data.page, data.limit, data.q);
+    }
+    return getMaintenanceByLandlord(session.id, data.page, data.limit, data.q);
+  });
 
 export const getMyMaintenanceAsTenantFn = createServerFn({ method: "GET" }).handler(async () => {
   const session = await requireAuth();
@@ -150,8 +169,8 @@ PropEase Notifications`;
 <p>Please log in to your landlord dashboard to review and assign this task.</p>
 <p>Best regards,<br/>PropEase Notifications</p>`;
 
-            const { sendEmail } = await import("./email");
-            await sendEmail({ to: landlord.email, subject, html, text });
+            const { enqueueEmail } = await import("./email-queue");
+            enqueueEmail({ to: landlord.email, subject, html, text });
           }
         }
       }
@@ -285,8 +304,8 @@ PropEase Notifications`;
 <p>Please log in to your dashboard to view the request and update its progress status.</p>
 <p>Best regards,<br/>PropEase Notifications</p>`;
 
-          const { sendEmail } = await import("./email");
-          await sendEmail({ to: worker.email, subject, html, text });
+          const { enqueueEmail } = await import("./email-queue");
+          enqueueEmail({ to: worker.email, subject, html, text });
         }
       } catch (err) {
         console.error("Failed to send worker assignment email:", err);
@@ -298,10 +317,19 @@ PropEase Notifications`;
 
 // ─── Payments ──────────────────────────────────────────────
 
-export const getMyPaymentsFn = createServerFn({ method: "GET" }).handler(async () => {
-  const session = await requireAuth();
-  return getPaymentsByLandlord(session.id);
-});
+export const getMyPaymentsFn = createServerFn({ method: "GET" })
+  .inputValidator(
+    z.object({
+      page: z.number().optional(),
+      limit: z.number().optional(),
+      q: z.string().optional(),
+    }).optional()
+  )
+  .handler(async (ctx) => {
+    const session = await requireAuth();
+    const data = ctx.data || {};
+    return getPaymentsByLandlord(session.id, data.page, data.limit, data.q);
+  });
 
 export const getMyPaymentsAsTenantFn = createServerFn({ method: "GET" }).handler(async () => {
   const session = await requireAuth();

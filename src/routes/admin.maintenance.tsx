@@ -68,10 +68,29 @@ import {
 } from "@/components/shared/MaintenanceBadges";
 import type { MaintenanceRow, AssignableWorker } from "@/db/queries";
 
+import { z } from "zod";
+
 export const Route = createFileRoute("/admin/maintenance")({
-  loader: async () => {
-    const [requests, workers] = await Promise.all([getMyMaintenanceFn(), getAssignableWorkersFn()]);
-    return { requests, workers };
+  validateSearch: z.object({
+    page: z.number().catch(1),
+    limit: z.number().catch(50),
+    q: z.string().catch(""),
+  }),
+  loaderDeps: ({ search: { page, limit, q } }) => ({ page, limit, q }),
+  loader: async ({ deps: { page, limit, q } }) => {
+    const [requestsData, workers] = await Promise.all([
+      getMyMaintenanceFn({ data: { page, limit, q } }), 
+      getAssignableWorkersFn()
+    ]);
+    return { 
+      requests: requestsData.data, 
+      total: requestsData.total, 
+      stats: requestsData.stats, 
+      page, 
+      limit, 
+      q, 
+      workers 
+    };
   },
   component: MaintenancePage,
 });
@@ -92,12 +111,22 @@ const cols = [
 ];
 
 function MaintenancePage() {
-  const { requests, workers } = Route.useLoaderData() as {
-    requests: MaintenanceRow[];
-    workers: AssignableWorker[];
-  };
+  const { requests, total, stats, page, limit, q: initialQ, workers } = Route.useLoaderData() as any;
   const { user, properties } = useLoaderData({ from: "/admin" }) as any;
+  const [q, setQ] = useState(initialQ);
   const [view, setView] = useState<"kanban" | "table">("kanban");
+  
+  // Debounce search update to URL
+  import("react").then((React) => {
+    React.useEffect(() => {
+      const t = setTimeout(() => {
+        router.navigate({ to: ".", search: { page: 1, limit, q }, replace: true });
+      }, 300);
+      return () => clearTimeout(t);
+    }, [q, limit]); // We omit router.navigate to avoid dependency issues if router isn't stable
+  });
+
+  const totalPages = Math.ceil(total / limit);
   const [selectedRequest, setSelectedRequest] = useState<MaintenanceRow | null>(null);
   const [draggedOverCol, setDraggedOverCol] = useState<string | null>(null);
   const [draggedRequest, setDraggedRequest] = useState<MaintenanceRow | null>(null);
@@ -259,8 +288,16 @@ function MaintenancePage() {
         <div>
           <h2 className="text-xl font-semibold tracking-tight font-display">Maintenance</h2>
           <p className="text-sm text-muted-foreground font-medium">
-            {requests.length} requests · {highPri} high priority
+            {total} total requests · {stats.open} open · {stats.emergency} emergency
           </p>
+        </div>
+        <div className="flex-1 max-w-sm px-4">
+          <Input 
+            placeholder="Search tasks, units, or tenants..." 
+            value={q} 
+            onChange={e => setQ(e.target.value)}
+            className="h-9 w-full"
+          />
         </div>
         <div className="flex items-center gap-2">
           {!(user.role === "maintenance" || user.role === "service") && (
@@ -436,6 +473,32 @@ function MaintenancePage() {
             </Table>
           </CardContent>
         </Card>
+      )}
+
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between border-t border-border/50 pt-4 mt-6">
+          <p className="text-sm text-muted-foreground">
+            Showing {(page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total} requests
+          </p>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => router.navigate({ to: ".", search: { page: page - 1, limit, q }, replace: true })}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => router.navigate({ to: ".", search: { page: page + 1, limit, q }, replace: true })}
+            >
+              Next
+            </Button>
+          </div>
+        </div>
       )}
 
       {/* Details & Assignment Dialog */}

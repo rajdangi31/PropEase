@@ -93,34 +93,20 @@ function TenantDocuments() {
 
     setIsUploading(true);
     try {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        try {
-          const base64Content = (reader.result as string).split(",")[1];
-          await uploadDocumentFn({
-            data: {
-              name: selectedFile.name,
-              type: docType,
-              content: base64Content,
-            },
-          });
-          toast.success("Document uploaded successfully.");
-          setUploadOpen(false);
-          setSelectedFile(null);
-          router.invalidate(); // Refresh loader data
-        } catch (err: any) {
-          toast.error(err.message || "Failed to upload document.");
-        } finally {
-          setIsUploading(false);
-        }
-      };
-      reader.onerror = () => {
-        toast.error("Failed to read file.");
-        setIsUploading(false);
-      };
-      reader.readAsDataURL(selectedFile);
+      const formData = new FormData();
+      formData.append("file", selectedFile);
+      formData.append("name", selectedFile.name);
+      formData.append("type", docType);
+
+      await uploadDocumentFn({ data: formData as any });
+      
+      toast.success("Document uploaded successfully.");
+      setUploadOpen(false);
+      setSelectedFile(null);
+      router.invalidate();
     } catch (err: any) {
       toast.error(err.message || "Failed to upload document.");
+    } finally {
       setIsUploading(false);
     }
   };
@@ -128,14 +114,42 @@ function TenantDocuments() {
   const handleDownload = async (id: string) => {
     setDownloadingId(id);
     try {
-      const fileData = await downloadDocumentFn({ data: { id } });
-      const link = document.createElement("a");
-      link.href = `data:${fileData.contentType};base64,${fileData.content}`;
-      link.download = fileData.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      toast.success("Download started.");
+      const response = await downloadDocumentFn({ data: { id } }) as unknown as Response;
+      
+      // The server function now returns a Response containing the file stream
+      if (response instanceof Response) {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const blob = await response.blob();
+        
+        // Extract filename from Content-Disposition header if possible
+        const contentDisposition = response.headers.get("Content-Disposition");
+        let filename = "document";
+        if (contentDisposition && contentDisposition.includes("filename=")) {
+          filename = contentDisposition.split("filename=")[1].replace(/"/g, "");
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        // Fallback if the interceptor unwrapped it to something else
+        const fileData = response as any;
+        if (fileData.content) {
+          const link = document.createElement("a");
+          link.href = `data:${fileData.contentType};base64,${fileData.content}`;
+          link.download = fileData.name || "document";
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
+      
+      toast.success("Download complete.");
     } catch (err: any) {
       toast.error(err.message || "Failed to download document.");
     } finally {

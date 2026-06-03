@@ -74,13 +74,37 @@ function AdminDocuments() {
   const handleDownload = async (id: string, name: string) => {
     setDownloadingId(id);
     try {
-      const fileData = await downloadDocumentFn({ data: { id } });
-      const link = document.createElement("a");
-      link.href = `data:${fileData.contentType};base64,${fileData.content}`;
-      link.download = fileData.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const response = await downloadDocumentFn({ data: { id } }) as unknown as Response;
+      
+      if (response instanceof Response) {
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        const blob = await response.blob();
+        
+        let filename = name;
+        const contentDisposition = response.headers.get("Content-Disposition");
+        if (contentDisposition && contentDisposition.includes("filename=")) {
+          filename = contentDisposition.split("filename=")[1].replace(/"/g, "");
+        }
+
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+      } else {
+        const fileData = response as any;
+        if (fileData.content) {
+          const link = document.createElement("a");
+          link.href = `data:${fileData.contentType};base64,${fileData.content}`;
+          link.download = fileData.name || name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
+      }
       toast.success(`Downloaded: ${name}`);
     } catch (err: any) {
       toast.error(err.message || "Failed to download document.");

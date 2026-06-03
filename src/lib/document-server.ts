@@ -92,16 +92,8 @@ function getMimeType(filename: string): string {
 }
 
 export const uploadDocumentFn = createServerFn({ method: "POST" })
-  .inputValidator(
-    (d: {
-      name: string;
-      type: "lease_doc" | "id_proof" | "income_proof" | "inspection_report";
-      content: string; // Base64 content
-    }) => d,
-  )
   .handler(async (ctx) => {
     const session = await requireAuth();
-    const data = ctx.data;
 
     if (session.role !== "tenant") {
       throw new Error("Only tenants can upload documents.");
@@ -113,20 +105,27 @@ export const uploadDocumentFn = createServerFn({ method: "POST" })
       throw new Error("You must have an active lease to upload documents.");
     }
 
-    // 2. Put file in R2
-    const bucket = await getBucket();
-    const storageKey = `documents/${crypto.randomUUID()}_${data.name}`;
-
-    // Convert base64 to binary buffer/Uint8Array
-    const binaryString = atob(data.content);
-    const bytes = new Uint8Array(binaryString.length);
-    for (let i = 0; i < binaryString.length; i++) {
-      bytes[i] = binaryString.charCodeAt(i);
+    // Extract FormData from ctx.data (sent by the client)
+    const formData = ctx.data as unknown as FormData;
+    if (!(formData instanceof FormData)) {
+      throw new Error("Invalid payload: Expected FormData for file upload");
     }
 
-    await bucket.put(storageKey, bytes.buffer, {
+    const file = formData.get("file") as File | null;
+    const name = formData.get("name") as string | null;
+    const type = formData.get("type") as string | null;
+
+    if (!file || !name || !type) {
+      throw new Error("Missing required file or metadata in FormData");
+    }
+
+    // 2. Put file in R2 by streaming it
+    const bucket = await getBucket();
+    const storageKey = `documents/${crypto.randomUUID()}_${name}`;
+
+    await bucket.put(storageKey, file.stream(), {
       httpMetadata: {
-        contentType: getMimeType(data.name),
+        contentType: file.type || getMimeType(name),
       },
     });
 
@@ -136,10 +135,10 @@ export const uploadDocumentFn = createServerFn({ method: "POST" })
       leaseId: leaseDetails.leaseId,
       tenantId: session.id,
       propertyId: leaseDetails.propertyId,
-      name: data.name,
+      name: name,
       storagePath: storageKey,
       uploadedBy: session.id,
-      type: data.type,
+      type: type as any,
       status: "pending_review",
     });
 
@@ -254,22 +253,13 @@ export const downloadDocumentFn = createServerFn({ method: "GET" })
       throw new Error("Document file not found in storage bucket.");
     }
 
-    const arr = await object.arrayBuffer();
-    const uint8 = new Uint8Array(arr);
-
-    // Convert to Base64 in a chunk-safe manner to prevent stack overflow on large files
-    let binary = "";
-    const len = uint8.byteLength;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(uint8[i]);
-    }
-    const base64 = btoa(binary);
-
-    return {
-      name: doc.name,
-      contentType: object.httpMetadata?.contentType || "application/octet-stream",
-      content: base64,
-    };
+    // Convert to Response and stream directly to client
+    return new Response(object.body as ReadableStream, {
+      headers: {
+        "Content-Type": object.httpMetadata?.contentType || "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${doc.name}"`,
+      },
+    });
   });
 
 export const getDocumentsForLandlordFn = createServerFn({ method: "GET" }).handler(async () => {

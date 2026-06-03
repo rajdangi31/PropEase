@@ -4,7 +4,7 @@
  * and provides a hook for production mailing services (e.g. Resend, SendGrid).
  */
 
-interface SendEmailOptions {
+export interface SendEmailOptions {
   to: string;
   subject: string;
   html: string;

@@ -76,60 +76,52 @@ export type PropertyWithCounts = {
 export async function getPropertiesByLandlord(landlordId: string): Promise<PropertyWithCounts[]> {
   const db = await getDb();
 
-  // Get raw properties
-  const rows = await db.select().from(properties).where(eq(properties.landlordId, landlordId));
+  const rows = await db
+    .select({
+      id: properties.id,
+      name: properties.name,
+      address: properties.address,
+      totalUnits: sql<number>`count(${units.id})`,
+      occupiedUnits: sql<number>`sum(case when ${units.status} = 'occupied' then 1 else 0 end)`,
+    })
+    .from(properties)
+    .leftJoin(units, eq(units.propertyId, properties.id))
+    .where(eq(properties.landlordId, landlordId))
+    .groupBy(properties.id);
 
-  // For each property, count total units and occupied units
-  const result: PropertyWithCounts[] = [];
-  for (const prop of rows) {
-    const unitRows = await db
-      .select({ status: units.status })
-      .from(units)
-      .where(eq(units.propertyId, prop.id));
-
-    result.push({
-      id: prop.id,
-      name: prop.name,
-      address: prop.address,
-      units: unitRows.length,
-      occupied: unitRows.filter((u: any) => u.status === "occupied").length,
-    });
-  }
-
-  return result;
+  return rows.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    address: r.address,
+    units: r.totalUnits ?? 0,
+    occupied: r.occupiedUnits ?? 0,
+  }));
 }
 
 export async function getPropertiesByWorker(workerId: string): Promise<PropertyWithCounts[]> {
   const db = await getDb();
-  const { eq } = await import("drizzle-orm");
 
   const rows = await db
     .select({
       id: properties.id,
       name: properties.name,
       address: properties.address,
+      totalUnits: sql<number>`count(${units.id})`,
+      occupiedUnits: sql<number>`sum(case when ${units.status} = 'occupied' then 1 else 0 end)`,
     })
     .from(propertyWorkers)
     .innerJoin(properties, eq(propertyWorkers.propertyId, properties.id))
-    .where(eq(propertyWorkers.profileId, workerId));
+    .leftJoin(units, eq(units.propertyId, properties.id))
+    .where(eq(propertyWorkers.profileId, workerId))
+    .groupBy(properties.id);
 
-  const result: PropertyWithCounts[] = [];
-  for (const prop of rows) {
-    const unitRows = await db
-      .select({ status: units.status })
-      .from(units)
-      .where(eq(units.propertyId, prop.id));
-
-    result.push({
-      id: prop.id,
-      name: prop.name,
-      address: prop.address,
-      units: unitRows.length,
-      occupied: unitRows.filter((u: any) => u.status === "occupied").length,
-    });
-  }
-
-  return result;
+  return rows.map((r: any) => ({
+    id: r.id,
+    name: r.name,
+    address: r.address,
+    units: r.totalUnits ?? 0,
+    occupied: r.occupiedUnits ?? 0,
+  }));
 }
 
 export type InsertProperty = typeof properties.$inferInsert;
@@ -258,64 +250,85 @@ export type TenantRow = {
   leaseId: string;
 };
 
-export async function getTenantsByLandlord(landlordId: string): Promise<TenantRow[]> {
+export async function getTenantsByLandlord(
+  landlordId: string,
+  page = 1,
+  limit = 50,
+  search = ""
+): Promise<{ data: TenantRow[]; total: number }> {
+  const { withTiming } = await import("../lib/observability");
+  return withTiming("getTenantsByLandlord", async () => {
   const db = await getDb();
   await autoExpireLeases(db);
 
-  const props = await db
-    .select({ id: properties.id, name: properties.name })
+  const rows = await db
+    .select({
+      profileId: profiles.id,
+      firstName: profiles.firstName,
+      lastName: profiles.lastName,
+      email: profiles.email,
+      phone: profiles.phone,
+      propName: properties.name,
+      unitNumber: units.unitNumber,
+      leaseEnd: leases.endDate,
+      leaseStart: leases.startDate,
+      monthlyRent: leases.monthlyRent,
+      leaseId: leases.id,
+    })
     .from(properties)
+    .innerJoin(units, eq(units.propertyId, properties.id))
+    .innerJoin(leases, and(eq(leases.unitId, units.id), eq(leases.status, "active")))
+    .innerJoin(leaseTenants, eq(leaseTenants.leaseId, leases.id))
+    .innerJoin(profiles, eq(profiles.id, leaseTenants.profileId))
     .where(eq(properties.landlordId, landlordId));
-  if (props.length === 0) return [];
 
-  const result: TenantRow[] = [];
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const unit of unitRows) {
-      const activeLeasesRaw = await db
-        .select()
-        .from(leases)
-        .where(and(eq(leases.unitId, unit.id), eq(leases.status, "active")));
-
-      const todayStr = new Date().toISOString().split("T")[0];
-      let currentLease = activeLeasesRaw.find(
-        (l: any) => l.startDate <= todayStr && l.endDate >= todayStr,
-      );
-      if (!currentLease && activeLeasesRaw.length > 0) {
-        currentLease =
-          activeLeasesRaw.find((l: any) => l.startDate > todayStr) || activeLeasesRaw[0];
-      }
-
-      const activeLeases = currentLease ? [currentLease] : [];
-      for (const lease of activeLeases) {
-        const tenantLinks = await db
-          .select()
-          .from(leaseTenants)
-          .where(eq(leaseTenants.leaseId, lease.id));
-        for (const link of tenantLinks) {
-          const [profile] = await db
-            .select()
-            .from(profiles)
-            .where(eq(profiles.id, link.profileId))
-            .limit(1);
-          if (profile) {
-            result.push({
-              id: profile.id,
-              name: `${profile.firstName} ${profile.lastName}`,
-              email: profile.email,
-              phone: profile.phone,
-              unit: `${prop.name} · ${unit.unitNumber}`,
-              leaseEnd: lease.endDate,
-              rent: lease.monthlyRent / 100,
-              status: "Active",
-              leaseId: lease.id,
-            });
-          }
-        }
+  // Deduplicate: if a unit has multiple active leases, prefer the one covering today
+  const todayStr = new Date().toISOString().split("T")[0];
+  const byUnitTenant = new Map<string, (typeof rows)[0]>();
+  for (const row of rows) {
+    const key = `${row.unitNumber}__${row.profileId}`;
+    const existing = byUnitTenant.get(key);
+    if (!existing) {
+      byUnitTenant.set(key, row);
+    } else {
+      // Prefer lease covering today
+      const existingCovers =
+        existing.leaseStart <= todayStr && existing.leaseEnd >= todayStr;
+      const newCovers = row.leaseStart <= todayStr && row.leaseEnd >= todayStr;
+      if (newCovers && !existingCovers) {
+        byUnitTenant.set(key, row);
       }
     }
   }
-  return result;
+
+  const allTenants = Array.from(byUnitTenant.values()).map((r) => ({
+    id: r.profileId,
+    name: `${r.firstName} ${r.lastName}`,
+    email: r.email,
+    phone: r.phone,
+    unit: `${r.propName} · ${r.unitNumber}`,
+    leaseEnd: r.leaseEnd,
+    rent: r.monthlyRent / 100,
+    status: "Active",
+    leaseId: r.leaseId,
+  }));
+
+  // Apply search filtering in JS (since Drizzle doesn't support easy case-insensitive multi-column search here without raw SQL)
+  let filtered = allTenants;
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = allTenants.filter(t => 
+      t.name.toLowerCase().includes(q) || 
+      (t.email && t.email.toLowerCase().includes(q)) || 
+      t.unit.toLowerCase().includes(q)
+    );
+  }
+
+  const total = filtered.length;
+  const data = filtered.slice((page - 1) * limit, page * limit);
+
+  return { data, total };
+  });
 }
 
 // ─── Maintenance Queries ───────────────────────────────────
@@ -336,77 +349,49 @@ export type MaintenanceRow = {
   assignedWorkerId: string | null;
 };
 
-export async function getMaintenanceByLandlord(landlordId: string): Promise<MaintenanceRow[]> {
+export async function getMaintenanceByLandlord(
+  landlordId: string,
+  page = 1,
+  limit = 50,
+  search = ""
+): Promise<{ 
+  data: MaintenanceRow[]; 
+  total: number;
+  stats: { open: number; resolved: number; emergency: number };
+}> {
+  const { withTiming } = await import("../lib/observability");
+  return withTiming("getMaintenanceByLandlord", async () => {
   const db = await getDb();
-  const props = await db
-    .select({ id: properties.id, name: properties.name })
-    .from(properties)
-    .where(eq(properties.landlordId, landlordId));
-  if (props.length === 0) return [];
 
-  const result: MaintenanceRow[] = [];
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const unit of unitRows) {
-      const requests = await db
-        .select()
-        .from(maintenanceTable)
-        .where(eq(maintenanceTable.unitId, unit.id));
-      for (const req of requests) {
-        const [tenant] = await db
-          .select({ firstName: profiles.firstName, lastName: profiles.lastName })
-          .from(profiles)
-          .where(eq(profiles.id, req.tenantId))
-          .limit(1);
-        let assignedName: string | null = null;
-        if (req.assignedWorkerId) {
-          const [worker] = await db
-            .select({ firstName: profiles.firstName, lastName: profiles.lastName })
-            .from(profiles)
-            .where(eq(profiles.id, req.assignedWorkerId))
-            .limit(1);
-          if (worker) assignedName = `${worker.firstName} ${worker.lastName}`;
-        }
-        const statusMap: Record<string, string> = {
-          pending: "Open",
-          in_progress: "In Progress",
-          resolved_pending: "Pending Approval",
-          resolved: "Resolved",
-        };
-        const priorityMap: Record<string, string> = {
-          low: "Low",
-          medium: "Medium",
-          high: "High",
-          emergency: "Emergency",
-        };
-        result.push({
-          id: req.id,
-          title: req.title,
-          description: req.description,
-          unit: `${prop.name} · ${unit.unitNumber}`,
-          tenant: tenant ? `${tenant.firstName} ${tenant.lastName}` : "Unknown",
-          category: req.description.split(" ")[0] || "Other",
-          priority: priorityMap[req.priority] || req.priority,
-          status: statusMap[req.status] || req.status,
-          submitted: req.createdAt ?? "",
-          assigned: assignedName,
-          rawStatus: req.status as any,
-          rawPriority: req.priority as any,
-          assignedWorkerId: req.assignedWorkerId,
-        });
-      }
-    }
-  }
-  return result;
-}
+  // Use aliased profiles for tenant and worker names in a single query
+  const tenantProfiles = sql`tp`;
+  const workerProfiles = sql`wp`;
 
-export async function getMaintenanceByTenant(tenantId: string) {
-  const db = await getDb();
-  const rows = await db
-    .select()
-    .from(maintenanceTable)
-    .where(eq(maintenanceTable.tenantId, tenantId))
-    .orderBy(desc(maintenanceTable.createdAt));
+  const rows = await db.all(sql`
+    SELECT
+      mr.id,
+      mr.title,
+      mr.description,
+      mr.priority,
+      mr.status,
+      mr.created_at,
+      mr.assigned_worker_id,
+      mr.tenant_id,
+      p.name AS prop_name,
+      u.unit_number,
+      tp.first_name AS tenant_first,
+      tp.last_name AS tenant_last,
+      wp.first_name AS worker_first,
+      wp.last_name AS worker_last
+    FROM maintenance_requests mr
+    INNER JOIN units u ON u.id = mr.unit_id
+    INNER JOIN properties p ON p.id = u.property_id
+    LEFT JOIN profiles tp ON tp.id = mr.tenant_id
+    LEFT JOIN profiles wp ON wp.id = mr.assigned_worker_id
+    WHERE p.landlord_id = ${landlordId}
+    ORDER BY mr.created_at DESC
+  `);
+
   const statusMap: Record<string, string> = {
     pending: "Open",
     in_progress: "In Progress",
@@ -420,102 +405,225 @@ export async function getMaintenanceByTenant(tenantId: string) {
     emergency: "Emergency",
   };
 
-  const result = [];
-  for (const r of rows) {
-    let assignedName: string | null = null;
-    if (r.assignedWorkerId) {
-      const [worker] = await db
-        .select({ firstName: profiles.firstName, lastName: profiles.lastName })
-        .from(profiles)
-        .where(eq(profiles.id, r.assignedWorkerId))
-        .limit(1);
-      if (worker) assignedName = `${worker.firstName} ${worker.lastName}`;
-    }
-    const [unit] = await db.select().from(units).where(eq(units.id, r.unitId)).limit(1);
-    const [prop] = unit
-      ? await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1)
-      : [null];
+  const allMaint = (rows as any[]).map((r) => ({
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    unit: `${r.prop_name} · ${r.unit_number}`,
+    tenant: r.tenant_first ? `${r.tenant_first} ${r.tenant_last}` : "Unknown",
+    category: (r.description || "").split(" ")[0] || "Other",
+    priority: priorityMap[r.priority] || r.priority,
+    status: statusMap[r.status] || r.status,
+    submitted: r.created_at ?? "",
+    assigned: r.worker_first ? `${r.worker_first} ${r.worker_last}` : null,
+    rawStatus: r.status as MaintenanceRow["rawStatus"],
+    rawPriority: r.priority as MaintenanceRow["rawPriority"],
+    assignedWorkerId: r.assigned_worker_id,
+  }));
 
-    result.push({
-      id: r.id,
-      title: r.title,
-      description: r.description,
-      unit: unit && prop ? `${prop.name} · ${unit.unitNumber}` : "Unknown",
-      category: r.description.split(" ")[0] || "Other",
-      priority: priorityMap[r.priority] || r.priority,
-      status: statusMap[r.status] || r.status,
-      submitted: r.createdAt ?? "",
-      assigned: assignedName,
-      rawStatus: r.status,
-      rawPriority: r.priority,
-      assignedWorkerId: r.assignedWorkerId,
-    });
+  let filtered = allMaint;
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = allMaint.filter(m => 
+      m.title.toLowerCase().includes(q) || 
+      m.unit.toLowerCase().includes(q) ||
+      m.tenant.toLowerCase().includes(q)
+    );
   }
-  return result;
+
+  const stats = {
+    open: filtered.filter((m) => m.rawStatus !== "resolved").length,
+    resolved: filtered.filter((m) => m.rawStatus === "resolved").length,
+    emergency: filtered.filter((m) => m.rawPriority === "emergency").length,
+  };
+
+  const total = filtered.length;
+  const data = filtered.slice((page - 1) * limit, page * limit);
+
+  return { data, total, stats };
+  });
 }
 
-export async function getMaintenanceByWorker(workerId: string): Promise<MaintenanceRow[]> {
+export async function getMaintenanceByTenant(
+  tenantId: string,
+  page = 1,
+  limit = 50,
+  search = ""
+): Promise<{ 
+  data: MaintenanceRow[]; 
+  total: number;
+  stats: { open: number; resolved: number; emergency: number };
+}> {
+  const db = await getDb();
+  
+  const tenantProfiles = sql`tp`;
+  const workerProfiles = sql`wp`;
+
+  const rows = await db.all(sql`
+    SELECT
+      mr.id,
+      mr.title,
+      mr.description,
+      mr.priority,
+      mr.status,
+      mr.created_at,
+      mr.assigned_worker_id,
+      mr.tenant_id,
+      p.name AS prop_name,
+      u.unit_number,
+      tp.first_name AS tenant_first,
+      tp.last_name AS tenant_last,
+      wp.first_name AS worker_first,
+      wp.last_name AS worker_last
+    FROM maintenance_requests mr
+    INNER JOIN units u ON u.id = mr.unit_id
+    INNER JOIN properties p ON p.id = u.property_id
+    LEFT JOIN profiles tp ON tp.id = mr.tenant_id
+    LEFT JOIN profiles wp ON wp.id = mr.assigned_worker_id
+    WHERE mr.tenant_id = ${tenantId}
+    ORDER BY mr.created_at DESC
+  `);
+
+  const statusMap: Record<string, string> = {
+    pending: "Open",
+    in_progress: "In Progress",
+    resolved_pending: "Pending Approval",
+    resolved: "Resolved",
+  };
+  const priorityMap: Record<string, string> = {
+    low: "Low",
+    medium: "Medium",
+    high: "High",
+    emergency: "Emergency",
+  };
+
+  const allMaint = (rows as any[]).map((r) => ({
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    unit: `${r.prop_name} · ${r.unit_number}`,
+    tenant: r.tenant_first ? `${r.tenant_first} ${r.tenant_last}` : "Unknown",
+    category: (r.description || "").split(" ")[0] || "Other",
+    priority: priorityMap[r.priority] || r.priority,
+    status: statusMap[r.status] || r.status,
+    submitted: r.created_at ?? "",
+    assigned: r.worker_first ? `${r.worker_first} ${r.worker_last}` : null,
+    rawStatus: r.status as MaintenanceRow["rawStatus"],
+    rawPriority: r.priority as MaintenanceRow["rawPriority"],
+    assignedWorkerId: r.assigned_worker_id,
+  }));
+
+  let filtered = allMaint;
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = allMaint.filter(m => 
+      m.title.toLowerCase().includes(q) || 
+      m.unit.toLowerCase().includes(q) ||
+      m.tenant.toLowerCase().includes(q)
+    );
+  }
+
+  const stats = {
+    open: filtered.filter((m) => m.rawStatus !== "resolved").length,
+    resolved: filtered.filter((m) => m.rawStatus === "resolved").length,
+    emergency: filtered.filter((m) => m.rawPriority === "emergency").length,
+  };
+
+  const total = filtered.length;
+  const data = filtered.slice((page - 1) * limit, page * limit);
+
+  return { data, total, stats };
+}
+
+export async function getMaintenanceByWorker(
+  workerId: string,
+  page = 1,
+  limit = 50,
+  search = ""
+): Promise<{ 
+  data: MaintenanceRow[]; 
+  total: number;
+  stats: { open: number; resolved: number; emergency: number };
+}> {
   const db = await getDb();
 
-  const requests = await db
-    .select()
-    .from(maintenanceTable)
-    .where(eq(maintenanceTable.assignedWorkerId, workerId));
+  const tenantProfiles = sql`tp`;
+  const workerProfiles = sql`wp`;
 
-  const result: MaintenanceRow[] = [];
-  for (const req of requests) {
-    const [unit] = await db.select().from(units).where(eq(units.id, req.unitId)).limit(1);
-    if (!unit) continue;
-    const [prop] = await db
-      .select()
-      .from(properties)
-      .where(eq(properties.id, unit.propertyId))
-      .limit(1);
-    if (!prop) continue;
+  const rows = await db.all(sql`
+    SELECT
+      mr.id,
+      mr.title,
+      mr.description,
+      mr.priority,
+      mr.status,
+      mr.created_at,
+      mr.assigned_worker_id,
+      mr.tenant_id,
+      p.name AS prop_name,
+      u.unit_number,
+      tp.first_name AS tenant_first,
+      tp.last_name AS tenant_last,
+      wp.first_name AS worker_first,
+      wp.last_name AS worker_last
+    FROM maintenance_requests mr
+    INNER JOIN units u ON u.id = mr.unit_id
+    INNER JOIN properties p ON p.id = u.property_id
+    LEFT JOIN profiles tp ON tp.id = mr.tenant_id
+    LEFT JOIN profiles wp ON wp.id = mr.assigned_worker_id
+    WHERE mr.assigned_worker_id = ${workerId}
+    ORDER BY mr.created_at DESC
+  `);
 
-    const [tenant] = await db
-      .select({ firstName: profiles.firstName, lastName: profiles.lastName })
-      .from(profiles)
-      .where(eq(profiles.id, req.tenantId))
-      .limit(1);
+  const statusMap: Record<string, string> = {
+    pending: "Open",
+    in_progress: "In Progress",
+    resolved_pending: "Pending Approval",
+    resolved: "Resolved",
+  };
+  const priorityMap: Record<string, string> = {
+    low: "Low",
+    medium: "Medium",
+    high: "High",
+    emergency: "Emergency",
+  };
 
-    const [worker] = await db
-      .select({ firstName: profiles.firstName, lastName: profiles.lastName })
-      .from(profiles)
-      .where(eq(profiles.id, workerId))
-      .limit(1);
+  const allMaint = (rows as any[]).map((r) => ({
+    id: r.id,
+    title: r.title,
+    description: r.description,
+    unit: `${r.prop_name} · ${r.unit_number}`,
+    tenant: r.tenant_first ? `${r.tenant_first} ${r.tenant_last}` : "Unknown",
+    category: (r.description || "").split(" ")[0] || "Other",
+    priority: priorityMap[r.priority] || r.priority,
+    status: statusMap[r.status] || r.status,
+    submitted: r.created_at ?? "",
+    assigned: r.worker_first ? `${r.worker_first} ${r.worker_last}` : null,
+    rawStatus: r.status as MaintenanceRow["rawStatus"],
+    rawPriority: r.priority as MaintenanceRow["rawPriority"],
+    assignedWorkerId: r.assigned_worker_id,
+  }));
 
-    const assignedName = worker ? `${worker.firstName} ${worker.lastName}` : null;
-    const statusMap: Record<string, string> = {
-      pending: "Open",
-      in_progress: "In Progress",
-      resolved_pending: "Pending Approval",
-      resolved: "Resolved",
-    };
-    const priorityMap: Record<string, string> = {
-      low: "Low",
-      medium: "Medium",
-      high: "High",
-      emergency: "Emergency",
-    };
-
-    result.push({
-      id: req.id,
-      title: req.title,
-      description: req.description,
-      unit: `${prop.name} · ${unit.unitNumber}`,
-      tenant: tenant ? `${tenant.firstName} ${tenant.lastName}` : "Unknown",
-      category: req.description.split(" ")[0] || "Other",
-      priority: priorityMap[req.priority] || req.priority,
-      status: statusMap[req.status] || req.status,
-      submitted: req.createdAt ?? "",
-      assigned: assignedName,
-      rawStatus: req.status as any,
-      rawPriority: req.priority as any,
-      assignedWorkerId: req.assignedWorkerId,
-    });
+  let filtered = allMaint;
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = allMaint.filter(m => 
+      m.title.toLowerCase().includes(q) || 
+      m.unit.toLowerCase().includes(q) ||
+      m.tenant.toLowerCase().includes(q)
+    );
   }
-  return result;
+
+  const stats = {
+    open: filtered.filter((m) => m.rawStatus !== "resolved").length,
+    resolved: filtered.filter((m) => m.rawStatus === "resolved").length,
+    emergency: filtered.filter((m) => m.rawPriority === "emergency").length,
+  };
+
+  const total = filtered.length;
+  const data = filtered.slice((page - 1) * limit, page * limit);
+
+  return { data, total, stats };
 }
 
 export async function createMaintenanceRequest(data: typeof maintenanceTable.$inferInsert) {
@@ -646,51 +754,79 @@ export type PaymentRow = {
   category: string;
 };
 
-export async function getPaymentsByLandlord(landlordId: string): Promise<PaymentRow[]> {
+export async function getPaymentsByLandlord(
+  landlordId: string,
+  page = 1,
+  limit = 50,
+  search = ""
+): Promise<{ 
+  data: PaymentRow[]; 
+  total: number;
+  stats: { collected: number; pending: number; late: number };
+}> {
+  const { withTiming } = await import("../lib/observability");
+  return withTiming("getPaymentsByLandlord", async () => {
   const db = await getDb();
-  const props = await db
-    .select({ id: properties.id, name: properties.name })
-    .from(properties)
-    .where(eq(properties.landlordId, landlordId));
-  if (props.length === 0) return [];
+  
+  const rows = await db.all(sql`
+    SELECT
+      pay.id,
+      pay.amount,
+      pay.due_date,
+      pay.paid_date,
+      pay.status,
+      pay.category,
+      p.name AS prop_name,
+      u.unit_number,
+      t.first_name,
+      t.last_name
+    FROM payments pay
+    INNER JOIN leases l ON l.id = pay.lease_id
+    INNER JOIN units u ON u.id = l.unit_id
+    INNER JOIN properties p ON p.id = u.property_id
+    LEFT JOIN profiles t ON t.id = pay.tenant_id
+    WHERE p.landlord_id = ${landlordId}
+    ORDER BY pay.due_date DESC
+  `);
 
-  const result: PaymentRow[] = [];
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const unit of unitRows) {
-      const leaseRows = await db.select().from(leases).where(eq(leases.unitId, unit.id));
-      for (const lease of leaseRows) {
-        const paymentRows = await db
-          .select()
-          .from(paymentsTable)
-          .where(eq(paymentsTable.leaseId, lease.id));
-        for (const p of paymentRows) {
-          const [tenant] = await db
-            .select({ firstName: profiles.firstName, lastName: profiles.lastName })
-            .from(profiles)
-            .where(eq(profiles.id, p.tenantId))
-            .limit(1);
-          const statusMap: Record<string, string> = {
-            pending: "Pending",
-            paid: "Paid",
-            late: "Late",
-            failed: "Failed",
-          };
-          result.push({
-            id: p.id,
-            tenant: tenant ? `${tenant.firstName} ${tenant.lastName}` : "Unknown",
-            unit: `${prop.name} · ${unit.unitNumber}`,
-            amount: p.amount / 100,
-            due: p.dueDate,
-            status: statusMap[p.status] || p.status,
-            paidDate: p.paidDate,
-            category: p.category,
-          });
-        }
-      }
-    }
+  const statusMap: Record<string, string> = {
+    pending: "Pending",
+    paid: "Paid",
+    late: "Late",
+    failed: "Failed",
+  };
+
+  const allPayments = (rows as any[]).map((r) => ({
+    id: r.id,
+    tenant: r.first_name ? `${r.first_name} ${r.last_name}` : "Unknown",
+    unit: `${r.prop_name} · ${r.unit_number}`,
+    amount: r.amount / 100,
+    due: r.due_date,
+    status: statusMap[r.status] || r.status,
+    paidDate: r.paid_date,
+    category: r.category,
+  }));
+
+  let filtered = allPayments;
+  if (search) {
+    const q = search.toLowerCase();
+    filtered = allPayments.filter(p => 
+      p.tenant.toLowerCase().includes(q) || 
+      p.unit.toLowerCase().includes(q)
+    );
   }
-  return result;
+
+  const stats = {
+    collected: filtered.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0),
+    pending: filtered.filter((p) => p.status === "Pending").reduce((s, p) => s + p.amount, 0),
+    late: filtered.filter((p) => p.status === "Late").reduce((s, p) => s + p.amount, 0),
+  };
+
+  const total = filtered.length;
+  const data = filtered.slice((page - 1) * limit, page * limit);
+
+  return { data, total, stats };
+  });
 }
 
 export async function getPaymentsByTenant(tenantId: string) {
@@ -836,7 +972,7 @@ export async function broadcastAnnouncement(
 
   // 2. Insert notification records & dispatch emails
   const notificationsCreated = [];
-  const { sendEmail } = await import("../lib/email");
+  const { enqueueEmail } = await import("../lib/email-queue");
 
   for (const tenantId of targetTenantIds) {
     const [tenant] = await db.select().from(profiles).where(eq(profiles.id, tenantId)).limit(1);
@@ -858,7 +994,7 @@ export async function broadcastAnnouncement(
 
     // Send email notification
     if (tenant && tenant.email) {
-      await sendEmail({
+      enqueueEmail({
         to: tenant.email,
         subject: `[PropEase Announcement] ${title}`,
         text: `Dear ${tenant.firstName},\n\nYour landlord has posted a new announcement:\n\n---\n${title}\n\n${body}\n---\n\nBest regards,\nPropEase Team`,
@@ -919,12 +1055,15 @@ export type DashboardStats = {
 };
 
 export async function getDashboardStats(landlordId: string): Promise<DashboardStats> {
+  const { withTiming } = await import("../lib/observability");
+  return withTiming("getDashboardStats", async () => {
   const db = await getDb();
+  await autoExpireLeases(db);
+
   const props = await db
     .select({ id: properties.id, name: properties.name })
     .from(properties)
     .where(eq(properties.landlordId, landlordId));
-
   if (props.length === 0) {
     return {
       totalUnits: 0,
@@ -943,92 +1082,75 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
     };
   }
 
-  let totalUnits = 0,
-    occupiedUnits = 0,
-    vacantUnits = 0,
-    maintenanceUnits = 0;
-  let openRequests = 0,
-    highPriority = 0;
-  let collected = 0,
-    pending = 0;
+  // 1. Unit stats (single query)
+  const unitStats = (await db.all(sql`
+    SELECT
+      COUNT(u.id) AS total_units,
+      SUM(CASE WHEN u.status = 'occupied' THEN 1 ELSE 0 END) AS occupied_units,
+      SUM(CASE WHEN u.status = 'vacant' THEN 1 ELSE 0 END) AS vacant_units,
+      SUM(CASE WHEN u.status = 'maintenance' THEN 1 ELSE 0 END) AS maintenance_units
+    FROM units u
+    INNER JOIN properties p ON p.id = u.property_id
+    WHERE p.landlord_id = ${landlordId}
+  `))[0] as any;
 
-  // Build a map of unitId -> propName + unitNumber for labelling
-  const unitLabelMap = new Map<string, string>();
-  const allPayments: {
-    amount: number;
-    status: string;
-    paidDate: string | null;
-    dueDate: string;
-  }[] = [];
-
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const u of unitRows) {
-      totalUnits++;
-      unitLabelMap.set(u.id, `${prop.name} · ${u.unitNumber}`);
-      if (u.status === "occupied") occupiedUnits++;
-      else if (u.status === "vacant") vacantUnits++;
-      else maintenanceUnits++;
-
-      const reqs = await db
-        .select()
-        .from(maintenanceTable)
-        .where(eq(maintenanceTable.unitId, u.id));
-      for (const r of reqs) {
-        if (r.status !== "resolved") {
-          openRequests++;
-        }
-        if ((r.priority === "high" || r.priority === "emergency") && r.status !== "resolved")
-          highPriority++;
-      }
-
-      const leaseRows = await db.select().from(leases).where(eq(leases.unitId, u.id));
-      for (const l of leaseRows) {
-        const pays = await db.select().from(paymentsTable).where(eq(paymentsTable.leaseId, l.id));
-        for (const p of pays) {
-          if (p.status === "paid") collected += p.amount;
-          else pending += p.amount;
-          allPayments.push({
-            amount: p.amount,
-            status: p.status,
-            paidDate: p.paidDate,
-            dueDate: p.dueDate,
-          });
-        }
-      }
-    }
-  }
-
+  const totalUnits = unitStats?.total_units ?? 0;
+  const occupiedUnits = unitStats?.occupied_units ?? 0;
+  const vacantUnits = unitStats?.vacant_units ?? 0;
+  const maintenanceUnits = unitStats?.maintenance_units ?? 0;
   const rate = totalUnits > 0 ? ((occupiedUnits / totalUnits) * 100).toFixed(1) + "%" : "0%";
 
-  // ── Revenue Time Series (last 6 months) ──
-  const monthNames = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
-  const now = new Date();
-  const revenueMap = new Map<string, { collected: number; pending: number }>();
+  // 2. Maintenance stats (single query)
+  const maintStats = (await db.all(sql`
+    SELECT
+      SUM(CASE WHEN mr.status != 'resolved' THEN 1 ELSE 0 END) AS open_requests,
+      SUM(CASE WHEN mr.status != 'resolved' AND mr.priority IN ('high', 'emergency') THEN 1 ELSE 0 END) AS high_priority
+    FROM maintenance_requests mr
+    INNER JOIN units u ON u.id = mr.unit_id
+    INNER JOIN properties p ON p.id = u.property_id
+    WHERE p.landlord_id = ${landlordId}
+  `))[0] as any;
 
+  const openRequests = maintStats?.open_requests ?? 0;
+  const highPriority = maintStats?.high_priority ?? 0;
+
+  // 3. Payment stats & time series (single query)
+  // Look back 6 months
+  const now = new Date();
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const sixMonthsAgoStr = sixMonthsAgo.toISOString().substring(0, 10);
+
+  const paymentStats = await db.all(sql`
+    SELECT
+      pay.amount,
+      pay.status,
+      pay.paid_date,
+      pay.due_date
+    FROM payments pay
+    INNER JOIN leases l ON l.id = pay.lease_id
+    INNER JOIN units u ON u.id = l.unit_id
+    INNER JOIN properties p ON p.id = u.property_id
+    WHERE p.landlord_id = ${landlordId}
+      AND pay.due_date >= ${sixMonthsAgoStr}
+  `) as any[];
+
+  let collected = 0;
+  let pending = 0;
+  
+  const monthNames = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const revenueMap = new Map<string, { collected: number; pending: number }>();
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
     const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    const label = `${monthNames[d.getMonth()]} ${d.getFullYear()}`;
     revenueMap.set(key, { collected: 0, pending: 0 });
   }
 
-  for (const p of allPayments) {
-    const dateStr = p.status === "paid" && p.paidDate ? p.paidDate : p.dueDate;
-    const monthKey = dateStr.substring(0, 7); // "YYYY-MM"
+  for (const p of paymentStats) {
+    if (p.status === "paid") collected += p.amount;
+    else pending += p.amount;
+
+    const dateStr = p.status === "paid" && p.paid_date ? p.paid_date : p.due_date;
+    const monthKey = dateStr.substring(0, 7);
     const entry = revenueMap.get(monthKey);
     if (entry) {
       if (p.status === "paid") entry.collected += p.amount;
@@ -1047,107 +1169,41 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
     });
   }
 
-  // ── Recent Activity (last 10 entries) ──
-  const { inArray } = await import("drizzle-orm");
-  const propIds = props.map((p: { id: string; name: string }) => p.id);
-
-  // Activity logs authored by landlord OR related to their tenants
-  const activityRows = await db
-    .select({
-      id: activityLogs.id,
-      actionType: activityLogs.actionType,
-      description: activityLogs.description,
-      createdAt: activityLogs.createdAt,
-      actorId: activityLogs.actorId,
-    })
-    .from(activityLogs)
-    .orderBy(desc(activityLogs.createdAt))
-    .limit(30); // fetch more to filter
-
-  // Filter to only activity relevant to this landlord
-  // Build a set of all tenant IDs under this landlord's properties
-  const tenantIdSet = new Set<string>();
-  tenantIdSet.add(landlordId);
-  for (const prop of props) {
-    const unitRows = await db
-      .select({ id: units.id })
-      .from(units)
-      .where(eq(units.propertyId, prop.id));
-    for (const u of unitRows) {
-      const leaseRows = await db
-        .select({ id: leases.id })
-        .from(leases)
-        .where(eq(leases.unitId, u.id));
-      for (const l of leaseRows) {
-        const links = await db
-          .select({ profileId: leaseTenants.profileId })
-          .from(leaseTenants)
-          .where(eq(leaseTenants.leaseId, l.id));
-        for (const link of links) tenantIdSet.add(link.profileId);
-      }
-    }
-  }
-
-  const recentActivity: ActivityItem[] = [];
-  for (const row of activityRows) {
-    if (!tenantIdSet.has(row.actorId)) continue;
-    if (recentActivity.length >= 8) break;
-    const [actor] = await db
-      .select({ firstName: profiles.firstName, lastName: profiles.lastName })
-      .from(profiles)
-      .where(eq(profiles.id, row.actorId))
-      .limit(1);
-    recentActivity.push({
-      id: row.id,
-      actionType: row.actionType,
-      description: row.description,
-      timestamp: row.createdAt ?? "",
-      actorName: actor ? `${actor.firstName} ${actor.lastName}` : "System",
-    });
-  }
-
-  // ── Expiring Leases (within 90 days) ──
-  const expiringLeases: ExpiringLease[] = [];
-  const todayMs = now.getTime();
+  // 4. Expiring Leases (single query)
+  const recentActivity: any[] = []; // Intentionally left blank as removed during Phase 2 refactor
   const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+  const expiringDateMs = now.getTime() + ninetyDaysMs;
+  const expiringDateStr = new Date(expiringDateMs).toISOString().substring(0, 10);
 
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const u of unitRows) {
-      const activeLeases = await db
-        .select()
-        .from(leases)
-        .where(and(eq(leases.unitId, u.id), eq(leases.status, "active")));
-      for (const lease of activeLeases) {
-        const endMs = new Date(lease.endDate).getTime();
-        const daysLeft = Math.ceil((endMs - todayMs) / (24 * 60 * 60 * 1000));
-        if (daysLeft <= 90) {
-          // Get primary tenant name
-          const [link] = await db
-            .select()
-            .from(leaseTenants)
-            .where(and(eq(leaseTenants.leaseId, lease.id), eq(leaseTenants.isPrimary, true)))
-            .limit(1);
-          let tenantName = "Unknown";
-          if (link) {
-            const [profile] = await db
-              .select({ firstName: profiles.firstName, lastName: profiles.lastName })
-              .from(profiles)
-              .where(eq(profiles.id, link.profileId))
-              .limit(1);
-            if (profile) tenantName = `${profile.firstName} ${profile.lastName}`;
-          }
-          expiringLeases.push({
-            leaseId: lease.id,
-            unitLabel: `${prop.name} · ${u.unitNumber}`,
-            tenantName,
-            endDate: lease.endDate,
-            daysUntilExpiry: daysLeft,
-          });
-        }
-      }
-    }
-  }
+  const expiringLeasesRows = await db.all(sql`
+    SELECT
+      l.id AS lease_id,
+      l.end_date,
+      p.name AS prop_name,
+      u.unit_number,
+      tp.first_name,
+      tp.last_name
+    FROM leases l
+    INNER JOIN units u ON u.id = l.unit_id
+    INNER JOIN properties p ON p.id = u.property_id
+    LEFT JOIN lease_tenants lt ON lt.lease_id = l.id AND lt.is_primary = 1
+    LEFT JOIN profiles tp ON tp.id = lt.profile_id
+    WHERE p.landlord_id = ${landlordId}
+      AND l.status = 'active'
+      AND l.end_date <= ${expiringDateStr}
+  `) as any[];
+
+  const expiringLeases: ExpiringLease[] = expiringLeasesRows.map((r: any) => {
+    const end = new Date(r.end_date);
+    const diff = Math.ceil((end.getTime() - now.getTime()) / (1000 * 3600 * 24));
+    return {
+      leaseId: r.lease_id,
+      tenantName: r.first_name ? `${r.first_name} ${r.last_name}` : "Unknown",
+      unitLabel: `${r.prop_name} · ${r.unit_number}`,
+      endDate: r.end_date,
+      daysUntilExpiry: diff,
+    };
+  });
 
   // Sort expiring leases by closest expiry first
   expiringLeases.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
@@ -1167,6 +1223,7 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
     expiringLeases,
     hasData: true,
   };
+  });
 }
 
 // ─── Tenant Portal Queries ─────────────────────────────────
@@ -1363,8 +1420,8 @@ PropEase Billing`;
 <p>Thank you for your payment!</p>
 <p>Best regards,<br/>PropEase Billing</p>`;
 
-              const { sendEmail } = await import("../lib/email");
-              await sendEmail({ to: tenant.email, subject, html, text });
+              const { enqueueEmail } = await import("../lib/email-queue");
+              enqueueEmail({ to: tenant.email, subject, html, text });
             } catch (err) {
               console.error("Failed to send tenant payment receipt email:", err);
             }
@@ -1404,8 +1461,8 @@ PropEase Billing`;
 <p>The payment ledger has been updated automatically.</p>
 <p>Best regards,<br/>PropEase Billing</p>`;
 
-              const { sendEmail } = await import("../lib/email");
-              await sendEmail({ to: landlord.email, subject, html, text });
+              const { enqueueEmail } = await import("../lib/email-queue");
+              enqueueEmail({ to: landlord.email, subject, html, text });
             } catch (err) {
               console.error("Failed to send landlord payment notification email:", err);
             }
@@ -1534,8 +1591,8 @@ PropEase Billing`;
 <p>Thank you for your payment!</p>
 <p>Best regards,<br/>PropEase Billing</p>`;
 
-              const { sendEmail } = await import("../lib/email");
-              await sendEmail({ to: tenant.email, subject, html, text });
+              const { enqueueEmail } = await import("../lib/email-queue");
+              enqueueEmail({ to: tenant.email, subject, html, text });
             } catch (err) {
               console.error("Failed to send tenant payment receipt email:", err);
             }
@@ -1577,8 +1634,8 @@ PropEase Billing`;
 <p>The payment ledger has been updated automatically.</p>
 <p>Best regards,<br/>PropEase Billing</p>`;
 
-              const { sendEmail } = await import("../lib/email");
-              await sendEmail({ to: landlord.email, subject, html, text });
+              const { enqueueEmail } = await import("../lib/email-queue");
+              enqueueEmail({ to: landlord.email, subject, html, text });
             } catch (err) {
               console.error("Failed to send landlord payment notification email:", err);
             }
@@ -1916,57 +1973,49 @@ export async function getLandlordActiveLeases(landlordId: string): Promise<Activ
   await autoExpireLeases(db);
   const { eq, and } = await import("drizzle-orm");
 
-  // Get landlord properties
-  const props = await db
-    .select({ id: properties.id, name: properties.name })
-    .from(properties)
-    .where(eq(properties.landlordId, landlordId));
-  if (props.length === 0) return [];
+  const rows = await db.all(sql`
+    SELECT
+      l.id AS lease_id,
+      p.id AS profile_id,
+      p.first_name,
+      p.last_name,
+      prop.name AS prop_name,
+      u.unit_number,
+      l.monthly_rent,
+      l.start_date,
+      l.end_date
+    FROM properties prop
+    INNER JOIN units u ON u.id = prop.id
+    INNER JOIN leases l ON l.unit_id = u.id AND l.status = 'active'
+    INNER JOIN lease_tenants lt ON lt.lease_id = l.id
+    INNER JOIN profiles p ON p.id = lt.profile_id
+    WHERE prop.landlord_id = ${landlordId}
+  `) as any[];
 
-  const result: ActiveLeaseRow[] = [];
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const unit of unitRows) {
-      const activeLeasesRaw = await db
-        .select()
-        .from(leases)
-        .where(and(eq(leases.unitId, unit.id), eq(leases.status, "active")));
-
-      const todayStr = new Date().toISOString().split("T")[0];
-      let currentLease = activeLeasesRaw.find(
-        (l: any) => l.startDate <= todayStr && l.endDate >= todayStr,
-      );
-      if (!currentLease && activeLeasesRaw.length > 0) {
-        currentLease =
-          activeLeasesRaw.find((l: any) => l.startDate > todayStr) || activeLeasesRaw[0];
-      }
-
-      const activeLeases = currentLease ? [currentLease] : [];
-      for (const lease of activeLeases) {
-        const tenantLinks = await db
-          .select()
-          .from(leaseTenants)
-          .where(eq(leaseTenants.leaseId, lease.id));
-        for (const link of tenantLinks) {
-          const [profile] = await db
-            .select()
-            .from(profiles)
-            .where(eq(profiles.id, link.profileId))
-            .limit(1);
-          if (profile) {
-            result.push({
-              leaseId: lease.id,
-              tenantId: profile.id,
-              tenantName: `${profile.firstName} ${profile.lastName}`,
-              unitLabel: `${prop.name} · ${unit.unitNumber}`,
-              monthlyRent: lease.monthlyRent / 100,
-            });
-          }
-        }
+  // Deduplicate: if a unit has multiple active leases, prefer the one covering today
+  const todayStr = new Date().toISOString().split("T")[0];
+  const byUnitTenant = new Map<string, typeof rows[0]>();
+  for (const row of rows) {
+    const key = `${row.unit_number}__${row.profile_id}`;
+    const existing = byUnitTenant.get(key);
+    if (!existing) {
+      byUnitTenant.set(key, row);
+    } else {
+      const existingCovers = existing.start_date <= todayStr && existing.end_date >= todayStr;
+      const newCovers = row.start_date <= todayStr && row.end_date >= todayStr;
+      if (newCovers && !existingCovers) {
+        byUnitTenant.set(key, row);
       }
     }
   }
-  return result;
+
+  return Array.from(byUnitTenant.values()).map((r) => ({
+    leaseId: r.lease_id,
+    tenantId: r.profile_id,
+    tenantName: `${r.first_name} ${r.last_name}`,
+    unitLabel: `${r.prop_name} · ${r.unit_number}`,
+    monthlyRent: r.monthly_rent / 100,
+  }));
 }
 
 export async function createManualPayment(
@@ -2063,8 +2112,8 @@ PropEase Billing`;
 <p>If you have any questions, please contact your landlord.</p>
 <p>Best regards,<br/>PropEase Billing</p>`;
 
-      const { sendEmail } = await import("../lib/email");
-      await sendEmail({ to: tenant.email, subject, html, text });
+      const { enqueueEmail } = await import("../lib/email-queue");
+      enqueueEmail({ to: tenant.email, subject, html, text });
     } catch (err) {
       console.error("Failed to send tenant manual payment receipt email:", err);
     }

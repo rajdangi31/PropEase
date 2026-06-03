@@ -17,6 +17,10 @@ export const requestSignUpOtpFn = createServerFn({ method: "POST" })
   .handler(async (ctx) => {
     const data = ctx.data;
 
+    // Rate limit: 5 signups per IP per hour (using a placeholder 'ip' since we don't have request IP context easily here, fallback to email)
+    const { enforceRateLimit } = await import("./rate-limit");
+    enforceRateLimit(`signup:${data.email.toLowerCase()}`, 5, 3600_000);
+
     if (!data.email.toLowerCase().endsWith("@gmail.com")) {
       throw new Error("Currently, we only accept @gmail.com email addresses.");
     }
@@ -67,7 +71,7 @@ Expires At: ${expiresAt}
 
     // Dispatch real email (uses Resend in production, console panel fallback in dev)
     try {
-      const { sendEmail } = await import("./email");
+      const { enqueueEmail } = await import("./email-queue");
       const subject = "Verify your email address - PropEase";
       const text = `Welcome to PropEase! Use the verification code below to verify your email address and complete your signup.
 
@@ -84,7 +88,7 @@ This code will expire in 15 minutes.`;
   <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin-bottom: 0;">This code will expire in 15 minutes. If you did not request this code, you can safely ignore this email.</p>
 </div>`;
 
-      await sendEmail({ to: data.email.toLowerCase(), subject, html, text });
+      enqueueEmail({ to: data.email.toLowerCase(), subject, html, text });
     } catch (err) {
       console.error("Failed to dispatch OTP verification email:", err);
     }
@@ -157,6 +161,10 @@ export const verifyOtpAndSignUpFn = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string; code: string }) => d)
   .handler(async (ctx) => {
     const data = ctx.data;
+
+    // Rate limit: 5 attempts per email per 15 minutes
+    const { enforceRateLimit } = await import("./rate-limit");
+    enforceRateLimit(`verify_otp:${data.email.toLowerCase()}`, 5, 900_000);
 
     const { getDb } = await import("../db/index");
     const { verificationCodes } = await import("../db/schema");
@@ -261,7 +269,7 @@ export const requestPasswordResetOtpFn = createServerFn({ method: "POST" })
     });
 
     try {
-      const { sendEmail } = await import("./email");
+      const { enqueueEmail } = await import("./email-queue");
       const subject = "Reset your PropEase password";
       const text = `Use this verification code to reset your PropEase password.
 
@@ -278,7 +286,7 @@ This code will expire in 15 minutes.`;
   <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin-bottom: 0;">This code will expire in 15 minutes. If you did not request a password reset, you can safely ignore this email.</p>
 </div>`;
 
-      await sendEmail({ to: normalizedEmail, subject, html, text });
+      enqueueEmail({ to: normalizedEmail, subject, html, text });
     } catch (err) {
       console.error("Failed to dispatch password reset email:", err);
     }
@@ -334,6 +342,11 @@ export const signInFn = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string; password: string; inviteToken?: string }) => d)
   .handler(async (ctx) => {
     const data = ctx.data;
+    
+    // Rate limit login attempts to prevent brute force (10 attempts per 15 mins)
+    const { enforceRateLimit } = await import("./rate-limit");
+    enforceRateLimit(`login:${data.email.toLowerCase()}`, 10, 900_000);
+
     const { getProfileByEmail } = await import("../db/queries");
     const profile = await getProfileByEmail(data.email);
     if (!profile) {

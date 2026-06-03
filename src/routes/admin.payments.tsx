@@ -39,10 +39,23 @@ import {
   createManualPaymentFn,
 } from "@/lib/data-server";
 
+import { z } from "zod";
+
 export const Route = createFileRoute("/admin/payments")({
-  loader: () =>
-    Promise.all([getMyPaymentsFn(), getLandlordActiveLeasesFn()]).then(([payments, leases]) => ({
-      payments,
+  validateSearch: z.object({
+    page: z.number().catch(1),
+    limit: z.number().catch(50),
+    q: z.string().catch(""),
+  }),
+  loaderDeps: ({ search: { page, limit, q } }) => ({ page, limit, q }),
+  loader: ({ deps: { page, limit, q } }) =>
+    Promise.all([getMyPaymentsFn({ data: { page, limit, q } }), getLandlordActiveLeasesFn()]).then(([paymentsData, leases]) => ({
+      payments: paymentsData.data,
+      total: paymentsData.total,
+      stats: paymentsData.stats,
+      page,
+      limit,
+      q,
       leases,
     })),
   component: PaymentsPage,
@@ -65,11 +78,25 @@ function statusBadge(s: string) {
 }
 
 function PaymentsPage() {
-  const { payments, leases } = Route.useLoaderData();
+  const { payments, total, stats, page, limit, q: initialQ, leases } = Route.useLoaderData();
   const router = useRouter();
+  const navigate = Route.useNavigate();
+  const [q, setQ] = useState(initialQ);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLoggingPayment, setIsLoggingPayment] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  
+  // Debounce search update to URL
+  import("react").then((React) => {
+    React.useEffect(() => {
+      const t = setTimeout(() => {
+        navigate({ search: { page: 1, limit, q }, replace: true });
+      }, 300);
+      return () => clearTimeout(t);
+    }, [q, limit, navigate]);
+  });
+
+  const totalPages = Math.ceil(total / limit);
 
   // Manual payment form fields
   const [selectedLeaseId, setSelectedLeaseId] = useState("");
@@ -81,17 +108,7 @@ function PaymentsPage() {
   const [selectedPaymentForReceipt, setSelectedPaymentForReceipt] = useState<any | null>(null);
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
 
-  const totals = {
-    collected: payments
-      .filter((p: any) => p.status === "Paid")
-      .reduce((s: number, p: any) => s + p.amount, 0),
-    pending: payments
-      .filter((p: any) => p.status === "Pending")
-      .reduce((s: number, p: any) => s + p.amount, 0),
-    late: payments
-      .filter((p: any) => p.status === "Late")
-      .reduce((s: number, p: any) => s + p.amount, 0),
-  };
+  const totals = stats;
 
   const handleLeaseChange = (leaseId: string) => {
     setSelectedLeaseId(leaseId);
@@ -200,7 +217,18 @@ function PaymentsPage() {
                   </p>
                 </div>
               ) : (
-                <Table>
+                <>
+                  <div className="flex flex-col gap-3 border-b border-border/50 p-4 sm:flex-row sm:items-center">
+                    <div className="relative flex-1">
+                      <Input
+                        value={q}
+                        onChange={(e) => setQ(e.target.value)}
+                        placeholder="Search payments by tenant or unit..."
+                        className="h-9"
+                      />
+                    </div>
+                  </div>
+                  <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Tenant</TableHead>
@@ -241,6 +269,32 @@ function PaymentsPage() {
                     ))}
                   </TableBody>
                 </Table>
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between border-t border-border/50 p-4">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {(page - 1) * limit + 1} to {Math.min(page * limit, total)} of {total} payments
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page <= 1}
+                      onClick={() => navigate({ search: { page: page - 1, limit, q }, replace: true })}
+                    >
+                      Previous
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={page >= totalPages}
+                      onClick={() => navigate({ search: { page: page + 1, limit, q }, replace: true })}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              )}
+                </>
               )}
             </CardContent>
           </Card>

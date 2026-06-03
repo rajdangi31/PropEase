@@ -45,6 +45,7 @@ export const properties = sqliteTable(
   (table) => ({
     cityIdx: index("city_idx").on(table.city),
     localityIdx: index("locality_idx").on(table.locality),
+    landlordIdx: index("prop_landlord_idx").on(table.landlordId),
   }),
 );
 
@@ -80,29 +81,37 @@ export const units = sqliteTable(
     statusIdx: index("status_idx").on(table.status),
     rentIdx: index("rent_idx").on(table.currentMarketRent),
     bedsIdx: index("beds_idx").on(table.beds),
+    propertyIdx: index("unit_property_idx").on(table.propertyId),
   }),
 );
 
 /**
  * 3. LEASES & TENANCY
  */
-export const leases = sqliteTable("leases", {
-  id: text("id").primaryKey(),
-  unitId: text("unit_id")
-    .notNull()
-    .references(() => units.id),
-  startDate: text("start_date").notNull(),
-  endDate: text("end_date").notNull(),
-  monthlyRent: integer("monthly_rent").notNull(), // In cents
-  securityDeposit: integer("security_deposit").notNull(), // In cents
-  status: text("status", {
-    enum: ["draft", "active", "expired", "terminated"],
-  })
-    .notNull()
-    .default("draft"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
+export const leases = sqliteTable(
+  "leases",
+  {
+    id: text("id").primaryKey(),
+    unitId: text("unit_id")
+      .notNull()
+      .references(() => units.id),
+    startDate: text("start_date").notNull(),
+    endDate: text("end_date").notNull(),
+    monthlyRent: integer("monthly_rent").notNull(), // In cents
+    securityDeposit: integer("security_deposit").notNull(), // In cents
+    status: text("status", {
+      enum: ["draft", "active", "expired", "terminated"],
+    })
+      .notNull()
+      .default("draft"),
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    unitStatusIdx: index("lease_unit_status_idx").on(table.unitId, table.status),
+    statusIdx: index("lease_status_idx").on(table.status),
+  }),
+);
 
 export const leaseTenants = sqliteTable(
   "lease_tenants",
@@ -119,36 +128,46 @@ export const leaseTenants = sqliteTable(
   },
   (table) => ({
     pk: primaryKey({ columns: [table.leaseId, table.profileId] }),
+    profileIdx: index("lt_profile_idx").on(table.profileId),
   }),
 );
 
 /**
  * 4. OPERATIONS (MAINTENANCE & PAYMENTS)
  */
-export const maintenanceRequests = sqliteTable("maintenance_requests", {
-  id: text("id").primaryKey(),
-  unitId: text("unit_id")
-    .notNull()
-    .references(() => units.id),
-  tenantId: text("tenant_id")
-    .notNull()
-    .references(() => profiles.id),
-  assignedWorkerId: text("assigned_worker_id").references(() => profiles.id),
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  priority: text("priority", {
-    enum: ["low", "medium", "high", "emergency"],
-  })
-    .notNull()
-    .default("medium"),
-  status: text("status", {
-    enum: ["pending", "in_progress", "resolved_pending", "resolved"],
-  })
-    .notNull()
-    .default("pending"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
+export const maintenanceRequests = sqliteTable(
+  "maintenance_requests",
+  {
+    id: text("id").primaryKey(),
+    unitId: text("unit_id")
+      .notNull()
+      .references(() => units.id),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => profiles.id),
+    assignedWorkerId: text("assigned_worker_id").references(() => profiles.id),
+    title: text("title").notNull(),
+    description: text("description").notNull(),
+    priority: text("priority", {
+      enum: ["low", "medium", "high", "emergency"],
+    })
+      .notNull()
+      .default("medium"),
+    status: text("status", {
+      enum: ["pending", "in_progress", "resolved_pending", "resolved"],
+    })
+      .notNull()
+      .default("pending"),
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    unitIdx: index("maint_unit_idx").on(table.unitId),
+    tenantIdx: index("maint_tenant_idx").on(table.tenantId),
+    workerIdx: index("maint_worker_idx").on(table.assignedWorkerId),
+    statusIdx: index("maint_status_idx").on(table.status),
+  }),
+);
 
 export const maintenanceLogs = sqliteTable("maintenance_logs", {
   id: text("id").primaryKey(),
@@ -163,82 +182,111 @@ export const maintenanceLogs = sqliteTable("maintenance_logs", {
   createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
 });
 
-export const payments = sqliteTable("payments", {
-  id: text("id").primaryKey(),
-  leaseId: text("lease_id")
-    .notNull()
-    .references(() => leases.id),
-  tenantId: text("tenant_id")
-    .notNull()
-    .references(() => profiles.id),
-  amount: integer("amount").notNull(), // In cents
-  category: text("category", {
-    enum: ["rent", "deposit", "utility", "late_fee"],
-  }).notNull(),
-  dueDate: text("due_date").notNull(),
-  paidDate: text("paid_date"),
-  status: text("status", {
-    enum: ["pending", "paid", "late", "failed"],
-  })
-    .notNull()
-    .default("pending"),
-  transactionId: text("transaction_id"), // Stripe/External reference
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
+export const payments = sqliteTable(
+  "payments",
+  {
+    id: text("id").primaryKey(),
+    leaseId: text("lease_id")
+      .notNull()
+      .references(() => leases.id),
+    tenantId: text("tenant_id")
+      .notNull()
+      .references(() => profiles.id),
+    amount: integer("amount").notNull(), // In cents
+    category: text("category", {
+      enum: ["rent", "deposit", "utility", "late_fee"],
+    }).notNull(),
+    dueDate: text("due_date").notNull(),
+    paidDate: text("paid_date"),
+    status: text("status", {
+      enum: ["pending", "paid", "late", "failed"],
+    })
+      .notNull()
+      .default("pending"),
+    transactionId: text("transaction_id"), // Stripe/External reference
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    leaseIdx: index("pay_lease_idx").on(table.leaseId),
+    tenantIdx: index("pay_tenant_idx").on(table.tenantId),
+    statusIdx: index("pay_status_idx").on(table.status),
+    dueDateIdx: index("pay_due_date_idx").on(table.dueDate),
+  }),
+);
 
 /**
  * 5. SYSTEM COMMUNICATIONS & AUDITING
  */
-export const notifications = sqliteTable("notifications", {
-  id: text("id").primaryKey(),
-  recipientId: text("recipient_id")
-    .notNull()
-    .references(() => profiles.id),
-  type: text("type", {
-    enum: ["payment", "maintenance", "announcement"],
-  }).notNull(),
-  title: text("title").notNull(),
-  body: text("body").notNull(),
-  isRead: integer("is_read", { mode: "boolean" }).default(false),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-});
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(),
+    recipientId: text("recipient_id")
+      .notNull()
+      .references(() => profiles.id),
+    type: text("type", {
+      enum: ["payment", "maintenance", "announcement"],
+    }).notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    isRead: integer("is_read", { mode: "boolean" }).default(false),
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    recipientIdx: index("notif_recipient_idx").on(table.recipientId, table.createdAt),
+  }),
+);
 
-export const activityLogs = sqliteTable("activity_logs", {
-  id: text("id").primaryKey(),
-  actorId: text("actor_id")
-    .notNull()
-    .references(() => profiles.id),
-  actionType: text("action_type").notNull(), // e.g., PAYMENT_RECEIVED
-  description: text("description").notNull(),
-  metadata: text("metadata"), // JSON object
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-});
+export const activityLogs = sqliteTable(
+  "activity_logs",
+  {
+    id: text("id").primaryKey(),
+    actorId: text("actor_id")
+      .notNull()
+      .references(() => profiles.id),
+    actionType: text("action_type").notNull(), // e.g., PAYMENT_RECEIVED
+    description: text("description").notNull(),
+    metadata: text("metadata"), // JSON object
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    createdAtIdx: index("activity_created_idx").on(table.createdAt),
+    actorIdx: index("activity_actor_idx").on(table.actorId),
+  }),
+);
 
 /**
  * 6. DOCUMENT MANAGEMENT
  */
-export const documents = sqliteTable("documents", {
-  id: text("id").primaryKey(),
-  leaseId: text("lease_id").references(() => leases.id),
-  tenantId: text("tenant_id").references(() => profiles.id),
-  propertyId: text("property_id").references(() => properties.id),
-  name: text("name").notNull(),
-  storagePath: text("storage_path").notNull(), // Cloudflare R2 Key
-  uploadedBy: text("uploaded_by")
-    .notNull()
-    .references(() => profiles.id),
-  type: text("type", {
-    enum: ["lease_doc", "id_proof", "income_proof", "inspection_report"],
-  }).notNull(),
-  status: text("status", {
-    enum: ["pending_review", "approved", "rejected"],
-  })
-    .notNull()
-    .default("pending_review"),
-  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
-  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
-});
+export const documents = sqliteTable(
+  "documents",
+  {
+    id: text("id").primaryKey(),
+    leaseId: text("lease_id").references(() => leases.id),
+    tenantId: text("tenant_id").references(() => profiles.id),
+    propertyId: text("property_id").references(() => properties.id),
+    name: text("name").notNull(),
+    storagePath: text("storage_path").notNull(), // Cloudflare R2 Key
+    uploadedBy: text("uploaded_by")
+      .notNull()
+      .references(() => profiles.id),
+    type: text("type", {
+      enum: ["lease_doc", "id_proof", "income_proof", "inspection_report"],
+    }).notNull(),
+    status: text("status", {
+      enum: ["pending_review", "approved", "rejected"],
+    })
+      .notNull()
+      .default("pending_review"),
+    createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => ({
+    tenantIdx: index("doc_tenant_idx").on(table.tenantId),
+    propertyIdx: index("doc_property_idx").on(table.propertyId),
+  }),
+);
 
 /**
  * 7. ONBOARDING & INVITATIONS

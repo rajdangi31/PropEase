@@ -119,11 +119,11 @@ function TenantDashboard() {
             <CardTitle className="text-base">My maintenance requests</CardTitle>
           </CardHeader>
           <CardContent>
-            {requests.length === 0 ? (
+            {requests.data.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No requests yet</p>
             ) : (
               <div className="divide-y divide-border">
-                {requests.map((r: any) => (
+                {requests.data.map((r: any) => (
                   <div key={r.id} className="flex items-center justify-between py-2.5">
                     <div>
                       <p className="text-sm font-medium">{r.title}</p>

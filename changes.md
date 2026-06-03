@@ -45,3 +45,25 @@ This document tracks all significant modifications and feature additions made to
 - **AI Explanation Generator**: Automatically builds human-readable explanations summarizing the key factors driving a property's estimated price.
 - **Confidence Scoring Engine**: Evaluates prediction accuracy dynamically based on data completeness (40%), comparable listing density (40%), and location intelligence availability (20%).
 - **Interactive UI Components**: Developed a stunning suite of pricing components (`PricePredictionCard`, `PriceFairnessMeter`, `RentRangeChart`, `ConfidenceMeter`, `ComparableProperties`) seamlessly integrated into the top of the `/property/$propertyId` route.
+
+## [2026-06-03] - Scaling Optimizations (500-User Scale)
+
+### 1. Database Query Efficiency
+- **Secondary Indexes Added**: Implemented indexes on highly queried fields across major tables (`leases`, `maintenanceRequests`, `payments`, `documents`, `properties`) to drastically reduce query execution times.
+- **N+1 Query Elimination**: Re-architected core queries inside `src/db/queries.ts` (including `getTenantsByLandlord` and `getDashboardStats`) to use single SQL statements with deep joins and aggregations, eliminating redundant loops and DB queries per record.
+
+### 2. Scalable Data Access
+- **Server-Side Pagination**: Implemented `page` and `limit` logic for major datasets (Tenants, Payments, Maintenance requests) via `src/lib/data-server.ts`.
+- **Pagination UI**: Wired admin pages (`admin.tenants.tsx`, `admin.payments.tsx`, `admin.maintenance.tsx`) to sync URL search parameters, providing smooth, offset-based pagination interfaces.
+
+### 3. Asynchronous Processing
+- **Non-Blocking Email Dispatch**: Migrated synchronous email delivery inside the request path to a non-blocking queue (`src/lib/email-queue.ts`), leveraging `waitUntil()` fire-and-forget capabilities to prevent hanging HTTP requests.
+- **R2 Document Streaming**: 
+  - Eradicated out-of-memory risks by eliminating base64 file processing.
+  - Refactored `uploadDocumentFn` in `document-server.ts` to directly stream `FormData` multipart payloads to Cloudflare R2.
+  - Changed `downloadDocumentFn` to stream raw binary `Response` bodies directly to the browser.
+  - Adapted `admin.documents.tsx` and `tenant.documents.tsx` to handle standard object streaming.
+
+### 4. Reliability & Protection
+- **Observability Layer**: Introduced `src/lib/observability.ts` with timing wrappers around heavy database queries to easily record and log performance latency.
+- **Rate Limiting**: Applied a sliding-window rate limit algorithm within `src/lib/rate-limit.ts` around sensitive authentication boundaries.

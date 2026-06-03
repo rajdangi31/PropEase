@@ -182,10 +182,10 @@ function TenantMaintenance() {
           <CardTitle className="text-base">My past requests</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 max-h-[460px] overflow-y-auto pr-1">
-          {requests.length === 0 ? (
+          {requests.data.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">No requests yet</p>
           ) : (
-            requests.map((r: any) => (
+            requests.data.map((r: any) => (
               <button
                 key={r.id}
                 onClick={() => setSelectedRequest(r)}
