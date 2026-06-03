@@ -41,18 +41,18 @@ async function getGoogleConfig(): Promise<{ clientId?: string; clientSecret?: st
  */
 export const getGoogleAuthUrlFn = createServerFn({ method: "POST" })
   .inputValidator((d: { inviteToken?: string }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const { inviteToken } = ctx.data;
     const config = await getGoogleConfig();
     if (!config.clientId) {
       throw new Error("GOOGLE_CLIENT_ID is not configured on the server environment.");
     }
 
-    const { setCookie } = await import("@tanstack/react-start/server");
+    const { setCookie, getRequestHeader } = await import("@tanstack/react-start/server");
 
     // Generate secure CSRF state
     const stateVal = Math.random().toString(36).substring(2) + Date.now().toString(36);
-    
+
     // Store invite token in state metadata if present
     const statePayload = inviteToken ? `${stateVal}__invite_${inviteToken}` : stateVal;
 
@@ -65,15 +65,15 @@ export const getGoogleAuthUrlFn = createServerFn({ method: "POST" })
       maxAge: 10 * 60, // 10 minutes
     });
 
-    const host = ctx.request.headers.get("host") || "localhost:8080";
+    const host = getRequestHeader("host") || "localhost:8080";
     const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
     const redirectUri = `${protocol}://${host}/auth/oauth-callback`;
 
     const scopes = ["openid", "email", "profile"];
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(
-      config.clientId
+      config.clientId,
     )}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=${encodeURIComponent(
-      scopes.join(" ")
+      scopes.join(" "),
     )}&state=${encodeURIComponent(statePayload)}&prompt=select_account`;
 
     return { authUrl };
@@ -84,14 +84,15 @@ export const getGoogleAuthUrlFn = createServerFn({ method: "POST" })
  */
 export const verifyGoogleCallbackFn = createServerFn({ method: "POST" })
   .inputValidator((d: { code: string; state: string }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const { code, state } = ctx.data;
     const config = await getGoogleConfig();
     if (!config.clientId || !config.clientSecret) {
       throw new Error("Google OAuth configuration keys are missing on the server.");
     }
 
-    const { getCookie, deleteCookie, setCookie } = await import("@tanstack/react-start/server");
+    const { getCookie, deleteCookie, setCookie, getRequestHeader } =
+      await import("@tanstack/react-start/server");
 
     // 1. Verify CSRF State cookie
     const storedState = getCookie(STATE_COOKIE_NAME);
@@ -106,7 +107,7 @@ export const verifyGoogleCallbackFn = createServerFn({ method: "POST" })
       throw new Error("CSRF security check failed: Invalid or expired OAuth state parameter.");
     }
 
-    const host = ctx.request.headers.get("host") || "localhost:8080";
+    const host = getRequestHeader("host") || "localhost:8080";
     const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
     const redirectUri = `${protocol}://${host}/auth/oauth-callback`;
 
@@ -131,13 +132,13 @@ export const verifyGoogleCallbackFn = createServerFn({ method: "POST" })
     }
 
     const tokens = (await tokenResponse.json()) as { id_token: string };
-    
+
     // 3. Decode JWT ID Token payload (Google payload)
     const jwtParts = tokens.id_token.split(".");
     if (jwtParts.length !== 3) {
       throw new Error("Invalid JWT ID Token received from Google.");
     }
-    
+
     let base64 = jwtParts[1].replace(/-/g, "+").replace(/_/g, "/");
     while (base64.length % 4) {
       base64 += "=";
@@ -156,7 +157,7 @@ export const verifyGoogleCallbackFn = createServerFn({ method: "POST" })
     }
 
     const email = gUser.email.toLowerCase();
-    
+
     // Strict @gmail.com domain check as requested in guidelines
     if (!email.endsWith("@gmail.com")) {
       throw new Error("Currently, we only accept @gmail.com email addresses.");
@@ -174,7 +175,7 @@ export const verifyGoogleCallbackFn = createServerFn({ method: "POST" })
     if (!profile) {
       // Create a new user profile
       const id = crypto.randomUUID();
-      
+
       // Determine default role: If invited, set role based on invitation; else default to landlord
       let defaultRole: "landlord" | "tenant" | "maintenance" = "landlord";
       if (inviteToken) {
@@ -202,7 +203,7 @@ export const verifyGoogleCallbackFn = createServerFn({ method: "POST" })
     }
 
     // Fetch latest profile state (in case role was updated by invitation processing)
-    const finalProfile = await getProfileById(profile.id) || profile;
+    const finalProfile = (await getProfileById(profile.id)) || profile;
 
     // 6. Generate session JWT
     const sessionToken = await signSession({

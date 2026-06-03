@@ -4,10 +4,19 @@ import { getCookie, setCookie, deleteCookie } from "@tanstack/react-start/server
 const SESSION_COOKIE_NAME = "propease_session";
 
 export const requestSignUpOtpFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { email: string; password: string; firstName: string; lastName: string; role: string; inviteToken?: string }) => d)
-  .handler(async (ctx: any) => {
+  .inputValidator(
+    (d: {
+      email: string;
+      password: string;
+      firstName: string;
+      lastName: string;
+      role: string;
+      inviteToken?: string;
+    }) => d,
+  )
+  .handler(async (ctx) => {
     const data = ctx.data;
-    
+
     if (!data.email.toLowerCase().endsWith("@gmail.com")) {
       throw new Error("Currently, we only accept @gmail.com email addresses.");
     }
@@ -83,7 +92,12 @@ This code will expire in 15 minutes.`;
     return { success: true };
   });
 
-export async function processAcceptedInvite(db: any, profileId: string, profileRole: string, inviteToken: string) {
+export async function processAcceptedInvite(
+  db: any,
+  profileId: string,
+  profileRole: string,
+  inviteToken: string,
+) {
   const { getInvite, acceptInvite, updateProfile } = await import("../db/queries");
   const { leases, leaseTenants, units, propertyWorkers } = await import("../db/schema");
   const { eq, and } = await import("drizzle-orm");
@@ -99,7 +113,12 @@ export async function processAcceptedInvite(db: any, profileId: string, profileR
       const [existingWorker] = await db
         .select()
         .from(propertyWorkers)
-        .where(and(eq(propertyWorkers.propertyId, invite.propertyId), eq(propertyWorkers.profileId, profileId)))
+        .where(
+          and(
+            eq(propertyWorkers.propertyId, invite.propertyId),
+            eq(propertyWorkers.profileId, profileId),
+          ),
+        )
         .limit(1);
       if (!existingWorker) {
         await db.insert(propertyWorkers).values({
@@ -119,7 +138,7 @@ export async function processAcceptedInvite(db: any, profileId: string, profileR
         securityDeposit: 0,
         status: "active",
       });
-      
+
       await db.insert(leaseTenants).values({
         leaseId,
         profileId: profileId,
@@ -128,7 +147,7 @@ export async function processAcceptedInvite(db: any, profileId: string, profileR
 
       // Mark unit as occupied
       await db.update(units).set({ status: "occupied" }).where(eq(units.id, invite.unitId!));
-      
+
       await acceptInvite(invite.id);
     }
   }
@@ -136,7 +155,7 @@ export async function processAcceptedInvite(db: any, profileId: string, profileR
 
 export const verifyOtpAndSignUpFn = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string; code: string }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const data = ctx.data;
 
     const { getDb } = await import("../db/index");
@@ -159,7 +178,9 @@ export const verifyOtpAndSignUpFn = createServerFn({ method: "POST" })
     }
 
     if (new Date() > new Date(record.expiresAt)) {
-      await db.delete(verificationCodes).where(eq(verificationCodes.email, data.email.toLowerCase()));
+      await db
+        .delete(verificationCodes)
+        .where(eq(verificationCodes.email, data.email.toLowerCase()));
       throw new Error("Verification code has expired.");
     }
 
@@ -188,7 +209,7 @@ export const verifyOtpAndSignUpFn = createServerFn({ method: "POST" })
 
     // Since profile role might have changed, fetch the latest profile
     const { getProfileById } = await import("../db/queries");
-    const finalProfile = await getProfileById(profile.id) || profile;
+    const finalProfile = (await getProfileById(profile.id)) || profile;
 
     const { signSession } = await import("./auth-crypto");
     const sessionToken = await signSession({
@@ -205,12 +226,15 @@ export const verifyOtpAndSignUpFn = createServerFn({ method: "POST" })
       maxAge: 7 * 24 * 60 * 60, // 7 days
     });
 
-    return { success: true, profile: { id: finalProfile.id, email: finalProfile.email, role: finalProfile.role } };
+    return {
+      success: true,
+      profile: { id: finalProfile.id, email: finalProfile.email, role: finalProfile.role },
+    };
   });
 
 export const requestPasswordResetOtpFn = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const data = ctx.data;
     const normalizedEmail = data.email.toLowerCase();
 
@@ -264,7 +288,7 @@ This code will expire in 15 minutes.`;
 
 export const resetPasswordWithOtpFn = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string; code: string; newPassword: string }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const data = ctx.data;
     const normalizedEmail = data.email.toLowerCase();
 
@@ -308,7 +332,7 @@ export const resetPasswordWithOtpFn = createServerFn({ method: "POST" })
 
 export const signInFn = createServerFn({ method: "POST" })
   .inputValidator((d: { email: string; password: string; inviteToken?: string }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const data = ctx.data;
     const { getProfileByEmail } = await import("../db/queries");
     const profile = await getProfileByEmail(data.email);
@@ -331,7 +355,7 @@ export const signInFn = createServerFn({ method: "POST" })
 
     // Since profile role might have changed, fetch the latest profile
     const { getProfileById } = await import("../db/queries");
-    const finalProfile = await getProfileById(profile.id) || profile;
+    const finalProfile = (await getProfileById(profile.id)) || profile;
 
     const { signSession } = await import("./auth-crypto");
     const sessionToken = await signSession({
@@ -348,43 +372,46 @@ export const signInFn = createServerFn({ method: "POST" })
       maxAge: 7 * 24 * 60 * 60, // 7 days
     });
 
-    return { success: true, profile: { id: finalProfile.id, email: finalProfile.email, role: finalProfile.role } };
-  });
-
-export const signOutFn = createServerFn({ method: "POST" })
-  .handler(async () => {
-    deleteCookie(SESSION_COOKIE_NAME, { path: "/" });
-    return { success: true };
-  });
-
-export const getMeFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const token = getCookie(SESSION_COOKIE_NAME);
-    if (!token) return null;
-
-    const { verifySession } = await import("./auth-crypto");
-    const session = await verifySession(token);
-    if (!session) return null;
-
-    const { getProfileById } = await import("../db/queries");
-    const profile = await getProfileById(session.id);
-    if (!profile) return null;
-
     return {
-      id: profile.id,
-      email: profile.email,
-      firstName: profile.firstName,
-      lastName: profile.lastName,
-      middleName: profile.middleName,
-      phone: profile.phone,
-      role: profile.role,
-      avatarUrl: profile.avatarUrl,
+      success: true,
+      profile: { id: finalProfile.id, email: finalProfile.email, role: finalProfile.role },
     };
   });
 
+export const signOutFn = createServerFn({ method: "POST" }).handler(async () => {
+  deleteCookie(SESSION_COOKIE_NAME, { path: "/" });
+  return { success: true };
+});
+
+export const getMeFn = createServerFn({ method: "GET" }).handler(async () => {
+  const token = getCookie(SESSION_COOKIE_NAME);
+  if (!token) return null;
+
+  const { verifySession } = await import("./auth-crypto");
+  const session = await verifySession(token);
+  if (!session) return null;
+
+  const { getProfileById } = await import("../db/queries");
+  const profile = await getProfileById(session.id);
+  if (!profile) return null;
+
+  return {
+    id: profile.id,
+    email: profile.email,
+    firstName: profile.firstName,
+    lastName: profile.lastName,
+    middleName: profile.middleName,
+    phone: profile.phone,
+    role: profile.role,
+    avatarUrl: profile.avatarUrl,
+  };
+});
+
 export const updateProfileFn = createServerFn({ method: "POST" })
-  .inputValidator((d: { firstName: string; lastName: string; middleName?: string; phone?: string }) => d)
-  .handler(async (ctx: any) => {
+  .inputValidator(
+    (d: { firstName: string; lastName: string; middleName?: string; phone?: string }) => d,
+  )
+  .handler(async (ctx) => {
     const data = ctx.data;
     const token = getCookie(SESSION_COOKIE_NAME);
     if (!token) throw new Error("Not authenticated");
@@ -412,6 +439,6 @@ export const updateProfileFn = createServerFn({ method: "POST" })
         phone: profile.phone,
         role: profile.role,
         avatarUrl: profile.avatarUrl,
-      }
+      },
     };
   });

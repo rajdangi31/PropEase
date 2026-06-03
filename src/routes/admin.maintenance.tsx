@@ -1,14 +1,44 @@
 import { createFileRoute, useLoaderData } from "@tanstack/react-router";
 import { useState, useEffect, useRef } from "react";
 import { Switch } from "@/components/ui/switch";
-import { Wrench, Zap, Droplets, Wind, Box, User, Calendar, Shield, LayoutGrid, List, Plus, Copy, Check, MessageSquare, Send, EyeOff, Eye, Loader2 } from "lucide-react";
+import {
+  Wrench,
+  Zap,
+  Droplets,
+  Wind,
+  Box,
+  User,
+  Calendar,
+  Shield,
+  LayoutGrid,
+  List,
+  Plus,
+  Copy,
+  Check,
+  MessageSquare,
+  Send,
+  EyeOff,
+  Eye,
+  Loader2,
+} from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { getMyMaintenanceFn, getAssignableWorkersFn, updateMaintenanceRequestFn, getMaintenanceLogsFn, addMaintenanceLogFn } from "@/lib/data-server";
+import {
+  getMyMaintenanceFn,
+  getAssignableWorkersFn,
+  updateMaintenanceRequestFn,
+  getMaintenanceLogsFn,
+  addMaintenanceLogFn,
+} from "@/lib/data-server";
 import { createInviteFn } from "@/lib/property-server";
 import { useRouter } from "@tanstack/react-router";
 import { toast } from "sonner";
@@ -23,157 +53,54 @@ import {
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
+import { InviteWorkerModal } from "@/components/admin/InviteWorkerModal";
+import {
+  priorityClass,
+  priorityDot,
+  getCategoryIcon,
+  Priority,
+} from "@/components/shared/MaintenanceBadges";
+import type { MaintenanceRow, AssignableWorker } from "@/db/queries";
 
 export const Route = createFileRoute("/admin/maintenance")({
   loader: async () => {
-    const [requests, workers] = await Promise.all([
-      getMyMaintenanceFn(),
-      getAssignableWorkersFn(),
-    ]);
+    const [requests, workers] = await Promise.all([getMyMaintenanceFn(), getAssignableWorkersFn()]);
     return { requests, workers };
   },
   component: MaintenancePage,
 });
 
-type Priority = "Emergency" | "High" | "Medium" | "Low";
-
-const priorityClass: Record<Priority, string> = {
-  Emergency: "bg-destructive/15 text-destructive border-destructive/30",
-  High: "bg-warning/15 text-warning border-warning/40",
-  Medium: "bg-info/15 text-info border-info/30",
-  Low: "bg-success/15 text-success border-success/30",
-};
-
-const priorityDot: Record<Priority, string> = {
-  Emergency: "🔴", High: "🟠", Medium: "🟡", Low: "🟢",
-};
-
-const catIcon = (c: string) => {
-  if (c === "Plumbing") return Droplets;
-  if (c === "Electrical") return Zap;
-  if (c === "HVAC") return Wind;
-  if (c === "Appliance") return Box;
-  return Wrench;
-};
-
 const cols = [
   { id: "pending", label: "Open", badgeColor: "bg-muted text-muted-foreground border-border" },
-  { id: "in_progress", label: "In Progress", badgeColor: "bg-warning/10 text-warning border-warning/20" },
-  { id: "resolved_pending", label: "Pending Approval", badgeColor: "bg-warning/10 text-warning border-warning/20" },
+  {
+    id: "in_progress",
+    label: "In Progress",
+    badgeColor: "bg-warning/10 text-warning border-warning/20",
+  },
+  {
+    id: "resolved_pending",
+    label: "Pending Approval",
+    badgeColor: "bg-warning/10 text-warning border-warning/20",
+  },
   { id: "resolved", label: "Resolved", badgeColor: "bg-success/10 text-success border-success/20" },
 ];
 
-function InviteWorkerModal({ properties }: { properties: any[] }) {
-  const [open, setOpen] = useState(false);
-  const [propertyId, setPropertyId] = useState("");
-  const [email, setEmail] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [inviteLink, setInviteLink] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsGenerating(true);
-    try {
-      const invite = await createInviteFn({
-        data: {
-          propertyId,
-          email: email || undefined,
-          inviteType: "maintenance",
-        }
-      });
-      const url = new URL(window.location.href);
-      setInviteLink(`${url.protocol}//${url.host}/auth?invite=${invite.id}`);
-    } catch (err) {
-      console.error(err);
-      toast.error("Failed to generate invitation link");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (!newOpen) {
-      setTimeout(() => {
-        setPropertyId("");
-        setEmail("");
-        setInviteLink("");
-      }, 200);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button><Plus className="mr-1.5 h-4 w-4" /> Invite Worker</Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Invite Maintenance Worker</DialogTitle>
-          <DialogDescription>
-            Generate a secure sign-up link to invite a maintenance worker to your property.
-          </DialogDescription>
-        </DialogHeader>
-        
-        {inviteLink ? (
-          <div className="flex flex-col space-y-4 pt-4">
-            <div className="rounded-md bg-accent/10 p-4 border border-accent/20">
-              <p className="text-sm text-accent-foreground font-medium mb-2">Invitation Link Generated!</p>
-              <div className="flex items-center space-x-2">
-                <Input value={inviteLink} readOnly className="font-mono text-xs text-muted-foreground" />
-                <Button size="icon" variant="secondary" onClick={handleCopy}>
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-            <Button onClick={() => handleOpenChange(false)} className="w-full">Done</Button>
-          </div>
-        ) : (
-          <form onSubmit={handleGenerate} className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label>Property</Label>
-              <Select value={propertyId} onValueChange={setPropertyId} required>
-                <SelectTrigger><SelectValue placeholder="Select property..." /></SelectTrigger>
-                <SelectContent>
-                  {properties.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Worker Email (Optional)</Label>
-              <Input type="email" placeholder="worker@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-
-            <div className="pt-4 flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
-              <Button type="submit" disabled={isGenerating}>{isGenerating ? "Generating..." : "Generate Link"}</Button>
-            </div>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function MaintenancePage() {
-  const { requests, workers } = Route.useLoaderData();
+  const { requests, workers } = Route.useLoaderData() as {
+    requests: MaintenanceRow[];
+    workers: AssignableWorker[];
+  };
   const { user, properties } = useLoaderData({ from: "/admin" }) as any;
   const [view, setView] = useState<"kanban" | "table">("kanban");
-  const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
+  const [selectedRequest, setSelectedRequest] = useState<MaintenanceRow | null>(null);
   const [draggedOverCol, setDraggedOverCol] = useState<string | null>(null);
-  const [draggedRequest, setDraggedRequest] = useState<any | null>(null);
+  const [draggedRequest, setDraggedRequest] = useState<MaintenanceRow | null>(null);
   const [isUpdating, setIsUpdating] = useState<string | null>(null);
   const [logs, setLogs] = useState<any[]>([]);
   const [isLoadingLogs, setIsLoadingLogs] = useState(false);
@@ -225,33 +152,49 @@ function MaintenancePage() {
     }
   };
 
-  const handleUpdate = async (id: string, updates: {
-    status?: "pending" | "in_progress" | "resolved_pending" | "resolved";
-    priority?: "low" | "medium" | "high" | "emergency";
-    assignedWorkerId?: string | null;
-  }) => {
+  const handleUpdate = async (
+    id: string,
+    updates: {
+      status?: "pending" | "in_progress" | "resolved_pending" | "resolved";
+      priority?: "low" | "medium" | "high" | "emergency";
+      assignedWorkerId?: string | null;
+    },
+  ) => {
     setIsUpdating(id);
     try {
       await updateMaintenanceRequestFn({ data: { id, ...updates } });
       toast.success("Maintenance request updated successfully");
-      
+
       // Update selectedRequest local state if modal is open
       if (selectedRequest && selectedRequest.id === id) {
-        setSelectedRequest((prev: any) => {
+        setSelectedRequest((prev: MaintenanceRow | null) => {
+          if (!prev) return null;
           const updated = { ...prev };
           if (updates.status !== undefined) {
             updated.rawStatus = updates.status;
-            const statusLabelMap = { pending: "Open", in_progress: "In Progress", resolved_pending: "Pending Approval", resolved: "Resolved" };
+            const statusLabelMap: Record<string, string> = {
+              pending: "Open",
+              in_progress: "In Progress",
+              resolved_pending: "Pending Approval",
+              resolved: "Resolved",
+            };
             updated.status = statusLabelMap[updates.status];
           }
           if (updates.priority !== undefined) {
             updated.rawPriority = updates.priority;
-            const priorityLabelMap = { low: "Low", medium: "Medium", high: "High", emergency: "Emergency" };
+            const priorityLabelMap: Record<string, string> = {
+              low: "Low",
+              medium: "Medium",
+              high: "High",
+              emergency: "Emergency",
+            };
             updated.priority = priorityLabelMap[updates.priority];
           }
           if (updates.assignedWorkerId !== undefined) {
             updated.assignedWorkerId = updates.assignedWorkerId;
-            const w = workers.find((worker: any) => worker.id === updates.assignedWorkerId);
+            const w = workers.find(
+              (worker: AssignableWorker) => worker.id === updates.assignedWorkerId,
+            );
             updated.assigned = w ? w.name : null;
           }
           return updated;
@@ -266,21 +209,24 @@ function MaintenancePage() {
     }
   };
 
-  const handleDragStart = (e: React.DragEvent, req: any) => {
+  const handleDragStart = (e: React.DragEvent, req: MaintenanceRow) => {
     e.dataTransfer.setData("text/plain", req.id);
     e.dataTransfer.effectAllowed = "move";
     setDraggedRequest(req);
   };
 
-  const handleDrop = async (e: React.DragEvent, status: "pending" | "in_progress" | "resolved_pending" | "resolved") => {
+  const handleDrop = async (
+    e: React.DragEvent,
+    status: "pending" | "in_progress" | "resolved_pending" | "resolved",
+  ) => {
     e.preventDefault();
     setDraggedOverCol(null);
     setDraggedRequest(null);
     const id = e.dataTransfer.getData("text/plain");
     if (!id) return;
-    
+
     // Find current status to prevent redundant or forbidden updates
-    const item = requests.find((r: any) => r.id === id);
+    const item = requests.find((r: MaintenanceRow) => r.id === id);
     if (!item) return;
 
     if (status === "pending" && item.rawStatus !== "pending") {
@@ -303,24 +249,38 @@ function MaintenancePage() {
     }
   };
 
-  const highPri = requests.filter((r: any) => r.priority === "High" || r.priority === "Emergency").length;
+  const highPri = requests.filter(
+    (r: MaintenanceRow) => r.priority === "High" || r.priority === "Emergency",
+  ).length;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-semibold tracking-tight font-display">Maintenance</h2>
-          <p className="text-sm text-muted-foreground font-medium">{requests.length} requests · {highPri} high priority</p>
+          <p className="text-sm text-muted-foreground font-medium">
+            {requests.length} requests · {highPri} high priority
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {!(user.role === "maintenance" || user.role === "service") && (
             <InviteWorkerModal properties={properties} />
           )}
           <div className="flex rounded-lg border border-border bg-card p-0.5">
-            <Button size="sm" variant={view === "kanban" ? "default" : "ghost"} onClick={() => setView("kanban")} className="h-8">
+            <Button
+              size="sm"
+              variant={view === "kanban" ? "default" : "ghost"}
+              onClick={() => setView("kanban")}
+              className="h-8"
+            >
               <LayoutGrid className="mr-1.5 h-3.5 w-3.5" /> Kanban
             </Button>
-            <Button size="sm" variant={view === "table" ? "default" : "ghost"} onClick={() => setView("table")} className="h-8">
+            <Button
+              size="sm"
+              variant={view === "table" ? "default" : "ghost"}
+              onClick={() => setView("table")}
+              className="h-8"
+            >
               <List className="mr-1.5 h-3.5 w-3.5" /> Table
             </Button>
           </div>
@@ -340,7 +300,7 @@ function MaintenancePage() {
       ) : view === "kanban" ? (
         <div className="grid gap-4 lg:grid-cols-3">
           {cols.map((col) => {
-            const items = requests.filter((r: any) => r.rawStatus === col.id);
+            const items = requests.filter((r: MaintenanceRow) => r.rawStatus === col.id);
             const isOver = draggedOverCol === col.id;
             return (
               <div
@@ -348,7 +308,11 @@ function MaintenancePage() {
                 onDragOver={(e) => {
                   e.preventDefault();
                   // Check if dragging back to Open/pending is forbidden
-                  if (col.id === "pending" && draggedRequest && draggedRequest.rawStatus !== "pending") {
+                  if (
+                    col.id === "pending" &&
+                    draggedRequest &&
+                    draggedRequest.rawStatus !== "pending"
+                  ) {
                     return;
                   }
                   if (draggedOverCol !== col.id) setDraggedOverCol(col.id);
@@ -370,8 +334,8 @@ function MaintenancePage() {
                   </Badge>
                 </div>
                 <div className="space-y-2 min-h-[350px]">
-                  {items.map((r: any) => {
-                    const Icon = catIcon(r.category);
+                  {items.map((r: MaintenanceRow) => {
+                    const Icon = getCategoryIcon(r.category);
                     const updating = isUpdating === r.id;
                     return (
                       <Card
@@ -385,10 +349,15 @@ function MaintenancePage() {
                       >
                         <CardContent className="p-3.5 space-y-3">
                           <div className="flex items-center justify-between">
-                            <Badge variant="outline" className={`gap-1 font-medium ${priorityClass[r.priority as Priority] ?? ""}`}>
+                            <Badge
+                              variant="outline"
+                              className={`gap-1 font-medium ${priorityClass[r.priority as Priority] ?? ""}`}
+                            >
                               {priorityDot[r.priority as Priority] ?? "⚪"} {r.priority}
                             </Badge>
-                            <span className="text-[10px] text-muted-foreground font-medium">{r.submitted.split(" ")[0]}</span>
+                            <span className="text-[10px] text-muted-foreground font-medium">
+                              {r.submitted.split(" ")[0]}
+                            </span>
                           </div>
                           <div>
                             <p className="text-sm font-semibold leading-tight text-foreground group-hover:text-primary transition-colors">
@@ -435,7 +404,7 @@ function MaintenancePage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {requests.map((r: any, i: number) => (
+                {requests.map((r: MaintenanceRow, i: number) => (
                   <TableRow
                     key={r.id}
                     onClick={() => setSelectedRequest(r)}
@@ -446,7 +415,10 @@ function MaintenancePage() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{r.unit}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`gap-1 font-medium ${priorityClass[r.priority as Priority] ?? ""}`}>
+                      <Badge
+                        variant="outline"
+                        className={`gap-1 font-medium ${priorityClass[r.priority as Priority] ?? ""}`}
+                      >
                         {priorityDot[r.priority as Priority] ?? "⚪"} {r.priority}
                       </Badge>
                     </TableCell>
@@ -455,7 +427,9 @@ function MaintenancePage() {
                         {r.status}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{r.assigned ?? "Unassigned"}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.assigned ?? "Unassigned"}
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -475,7 +449,10 @@ function MaintenancePage() {
                   <span className="text-[10px] font-bold uppercase tracking-wider text-accent bg-accent/15 px-2.5 py-0.5 rounded-full border border-accent/25">
                     Ticket #{selectedRequest.id.substring(0, 8)}
                   </span>
-                  <DialogTitle className="mt-2 text-lg font-bold leading-tight font-display text-foreground truncate max-w-[650px]" title={selectedRequest.title}>
+                  <DialogTitle
+                    className="mt-2 text-lg font-bold leading-tight font-display text-foreground truncate max-w-[650px]"
+                    title={selectedRequest.title}
+                  >
                     {selectedRequest.title}
                   </DialogTitle>
                 </div>
@@ -488,16 +465,23 @@ function MaintenancePage() {
                   <div className="bg-muted/30 border border-border/40 p-4 rounded-xl space-y-2.5">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Calendar className="h-3.5 w-3.5 text-accent" />
-                      <span>Submitted on <strong>{selectedRequest.submitted}</strong> by <strong>{selectedRequest.tenant}</strong></span>
+                      <span>
+                        Submitted on <strong>{selectedRequest.submitted}</strong> by{" "}
+                        <strong>{selectedRequest.tenant}</strong>
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Shield className="h-3.5 w-3.5 text-accent" />
-                      <span>Unit: <strong>{selectedRequest.unit}</strong></span>
+                      <span>
+                        Unit: <strong>{selectedRequest.unit}</strong>
+                      </span>
                     </div>
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Description</Label>
+                    <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Description
+                    </Label>
                     <p className="text-sm text-foreground leading-relaxed bg-muted/10 border border-border/50 p-4 rounded-xl whitespace-pre-wrap max-h-[160px] overflow-y-auto">
                       {selectedRequest.description}
                     </p>
@@ -505,10 +489,14 @@ function MaintenancePage() {
 
                   <div className="space-y-4 border-t border-border/50 pt-4">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Urgency</Label>
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Urgency
+                      </Label>
                       <Select
                         value={selectedRequest.rawPriority}
-                        onValueChange={(val) => handleUpdate(selectedRequest.id, { priority: val as any })}
+                        onValueChange={(val) =>
+                          handleUpdate(selectedRequest.id, { priority: val as any })
+                        }
                         disabled={user.role === "maintenance" || user.role === "service"}
                       >
                         <SelectTrigger className="h-10 w-full font-medium cursor-pointer">
@@ -524,19 +512,30 @@ function MaintenancePage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Status</Label>
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Status
+                      </Label>
                       <Select
                         value={selectedRequest.rawStatus}
-                        onValueChange={(val) => handleUpdate(selectedRequest.id, { status: val as any })}
+                        onValueChange={(val) =>
+                          handleUpdate(selectedRequest.id, { status: val as any })
+                        }
                       >
                         <SelectTrigger className="h-10 w-full font-medium cursor-pointer">
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="pending" disabled={selectedRequest.rawStatus !== "pending"}>Open</SelectItem>
+                          <SelectItem
+                            value="pending"
+                            disabled={selectedRequest.rawStatus !== "pending"}
+                          >
+                            Open
+                          </SelectItem>
                           <SelectItem value="in_progress">In Progress</SelectItem>
                           {user.role === "maintenance" || user.role === "service" ? (
-                            <SelectItem value="resolved_pending">Resolve (Request Approval)</SelectItem>
+                            <SelectItem value="resolved_pending">
+                              Resolve (Request Approval)
+                            </SelectItem>
                           ) : (
                             <>
                               <SelectItem value="resolved_pending">Pending Approval</SelectItem>
@@ -548,11 +547,15 @@ function MaintenancePage() {
                     </div>
 
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Assignee</Label>
+                      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                        Assignee
+                      </Label>
                       <Select
                         value={selectedRequest.assignedWorkerId || "__unassigned__"}
                         onValueChange={(val) => {
-                          handleUpdate(selectedRequest.id, { assignedWorkerId: val === "__unassigned__" ? null : val });
+                          handleUpdate(selectedRequest.id, {
+                            assignedWorkerId: val === "__unassigned__" ? null : val,
+                          });
                         }}
                         disabled={user.role === "maintenance" || user.role === "service"}
                       >
@@ -608,7 +611,10 @@ function MaintenancePage() {
                                 <strong>{log.authorName}</strong>
                                 <span className="opacity-80">({log.authorRole})</span>
                               </span>
-                              <span className="text-[9px] text-muted-foreground opacity-80">{log.createdAt.split(" ")[1]?.substring(0, 5) || log.createdAt.split(" ")[0]}</span>
+                              <span className="text-[9px] text-muted-foreground opacity-80">
+                                {log.createdAt.split(" ")[1]?.substring(0, 5) ||
+                                  log.createdAt.split(" ")[0]}
+                              </span>
                             </div>
                             <div
                               className={`rounded-xl p-3 text-xs leading-relaxed max-w-[95%] border ${
@@ -632,7 +638,10 @@ function MaintenancePage() {
                   </div>
 
                   {/* Comment Input Form */}
-                  <form onSubmit={handleAddComment} className="p-4 border-t border-border/50 bg-card space-y-3">
+                  <form
+                    onSubmit={handleAddComment}
+                    className="p-4 border-t border-border/50 bg-card space-y-3"
+                  >
                     <div className="relative">
                       <textarea
                         rows={2}
@@ -665,11 +674,16 @@ function MaintenancePage() {
                           onCheckedChange={setIsInternalComment}
                           disabled={isSubmittingComment}
                         />
-                        <Label htmlFor="internal-comment" className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1 cursor-pointer select-none">
+                        <Label
+                          htmlFor="internal-comment"
+                          className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1 cursor-pointer select-none"
+                        >
                           <EyeOff className="h-3.5 w-3.5" /> Internal staff note
                         </Label>
                       </div>
-                      <span className="text-[9px] text-muted-foreground/60 font-medium">Shift + Enter to submit</span>
+                      <span className="text-[9px] text-muted-foreground/60 font-medium">
+                        Shift + Enter to submit
+                      </span>
                     </div>
                   </form>
                 </div>

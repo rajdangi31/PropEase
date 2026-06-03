@@ -31,16 +31,27 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "PropEase — Property Management, Simplified" },
-      { name: "description", content: "PropEase is a modern property management platform for landlords, managers, and tenants." },
+      {
+        name: "description",
+        content:
+          "PropEase is a modern property management platform for landlords, managers, and tenants.",
+      },
       { property: "og:title", content: "PropEase — Property Management, Simplified" },
-      { property: "og:description", content: "Run your portfolio with ease. Tenants, rent, maintenance — in one beautiful workspace." },
+      {
+        property: "og:description",
+        content:
+          "Run your portfolio with ease. Tenants, rent, maintenance — in one beautiful workspace.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
     links: [
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap",
+      },
       { rel: "stylesheet", href: appCss },
     ],
   }),

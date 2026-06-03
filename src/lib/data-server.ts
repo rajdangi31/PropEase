@@ -3,15 +3,30 @@ import { getCookie } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { verifySession } from "./auth-crypto";
 import {
-  getTenantsByLandlord, getMaintenanceByLandlord, getMaintenanceByTenant,
-  createMaintenanceRequest, getPaymentsByLandlord, getPaymentsByTenant,
-  getNotificationsByUser, getDashboardStats, getTenantDashboard,
-  payTenantPayment, getAssignableWorkers, updateMaintenanceRequest,
-  getMaintenanceByWorker, getAssignableWorkersForLandlord,
-  createMaintenanceLog, getMaintenanceLogsByRequest,
-  generateRentInvoices, getLandlordActiveLeases, createManualPayment,
-  markNotificationRead, markAllNotificationsRead, broadcastAnnouncement,
-  terminateLease, renewLease,
+  getTenantsByLandlord,
+  getMaintenanceByLandlord,
+  getMaintenanceByTenant,
+  createMaintenanceRequest,
+  getPaymentsByLandlord,
+  getPaymentsByTenant,
+  getNotificationsByUser,
+  getDashboardStats,
+  getTenantDashboard,
+  payTenantPayment,
+  getAssignableWorkers,
+  updateMaintenanceRequest,
+  getMaintenanceByWorker,
+  getAssignableWorkersForLandlord,
+  createMaintenanceLog,
+  getMaintenanceLogsByRequest,
+  generateRentInvoices,
+  getLandlordActiveLeases,
+  createManualPayment,
+  markNotificationRead,
+  markAllNotificationsRead,
+  broadcastAnnouncement,
+  terminateLease,
+  renewLease,
 } from "../db/queries";
 
 const SESSION_COOKIE_NAME = "propease_session";
@@ -26,32 +41,36 @@ async function requireAuth() {
 
 // ─── Tenants ───────────────────────────────────────────────
 
-export const getMyTenantsFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    return getTenantsByLandlord(session.id);
-  });
+export const getMyTenantsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  return getTenantsByLandlord(session.id);
+});
 
 // ─── Maintenance ───────────────────────────────────────────
 
-export const getMyMaintenanceFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    if (session.role === "maintenance" || session.role === "service") {
-      return getMaintenanceByWorker(session.id);
-    }
-    return getMaintenanceByLandlord(session.id);
-  });
+export const getMyMaintenanceFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  if (session.role === "maintenance" || session.role === "service") {
+    return getMaintenanceByWorker(session.id);
+  }
+  return getMaintenanceByLandlord(session.id);
+});
 
-export const getMyMaintenanceAsTenantFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    return getMaintenanceByTenant(session.id);
-  });
+export const getMyMaintenanceAsTenantFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  return getMaintenanceByTenant(session.id);
+});
 
 export const createMaintenanceRequestFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ title: z.string(), description: z.string(), priority: z.string(), category: z.string() }))
-  .handler(async (ctx: any) => {
+  .inputValidator(
+    z.object({
+      title: z.string(),
+      description: z.string(),
+      priority: z.string(),
+      category: z.string(),
+    }),
+  )
+  .handler(async (ctx) => {
     const data = ctx.data;
     const session = await requireAuth();
     // Find the tenant's current unit through their active lease
@@ -60,12 +79,21 @@ export const createMaintenanceRequestFn = createServerFn({ method: "POST" })
     const { eq, and } = await import("drizzle-orm");
     const db = await getDb();
 
-    const links = await db.select().from(leaseTenants).where(eq(leaseTenants.profileId, session.id));
+    const links = await db
+      .select()
+      .from(leaseTenants)
+      .where(eq(leaseTenants.profileId, session.id));
     let unitId = "";
     for (const link of links) {
-      const [lease] = await db.select().from(leases)
-        .where(and(eq(leases.id, link.leaseId), eq(leases.status, "active"))).limit(1);
-      if (lease) { unitId = lease.unitId; break; }
+      const [lease] = await db
+        .select()
+        .from(leases)
+        .where(and(eq(leases.id, link.leaseId), eq(leases.status, "active")))
+        .limit(1);
+      if (lease) {
+        unitId = lease.unitId;
+        break;
+      }
     }
     if (!unitId) throw new Error("No active lease found");
 
@@ -89,7 +117,11 @@ export const createMaintenanceRequestFn = createServerFn({ method: "POST" })
 
       const [unit] = await db.select().from(units).where(eq(units.id, unitId)).limit(1);
       if (unit) {
-        const [property] = await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+        const [property] = await db
+          .select()
+          .from(properties)
+          .where(eq(properties.id, unit.propertyId))
+          .limit(1);
         if (property) {
           const landlord = await getProfileById(property.landlordId);
           if (landlord && landlord.email) {
@@ -130,23 +162,24 @@ PropEase Notifications`;
     return request;
   });
 
-export const getAssignableWorkersFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    if (session.role === "maintenance" || session.role === "service") {
-      return [];
-    }
-    return getAssignableWorkersForLandlord(session.id);
-  });
+export const getAssignableWorkersFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  if (session.role === "maintenance" || session.role === "service") {
+    return [];
+  }
+  return getAssignableWorkersForLandlord(session.id);
+});
 
 export const updateMaintenanceRequestFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({
-    id: z.string(),
-    status: z.enum(["pending", "in_progress", "resolved_pending", "resolved"]).optional(),
-    priority: z.enum(["low", "medium", "high", "emergency"]).optional(),
-    assignedWorkerId: z.string().nullable().optional(),
-  }))
-  .handler(async (ctx: any) => {
+  .inputValidator(
+    z.object({
+      id: z.string(),
+      status: z.enum(["pending", "in_progress", "resolved_pending", "resolved"]).optional(),
+      priority: z.enum(["low", "medium", "high", "emergency"]).optional(),
+      assignedWorkerId: z.string().nullable().optional(),
+    }),
+  )
+  .handler(async (ctx) => {
     const session = await requireAuth();
     const data = ctx.data;
 
@@ -154,14 +187,21 @@ export const updateMaintenanceRequestFn = createServerFn({ method: "POST" })
     const { maintenanceRequests } = await import("../db/schema");
     const { eq } = await import("drizzle-orm");
     const db = await getDb();
-    const [existingRequest] = await db.select().from(maintenanceRequests).where(eq(maintenanceRequests.id, data.id)).limit(1);
+    const [existingRequest] = await db
+      .select()
+      .from(maintenanceRequests)
+      .where(eq(maintenanceRequests.id, data.id))
+      .limit(1);
 
     if (!existingRequest) {
       throw new Error("Maintenance request not found.");
     }
 
     const finalStatus = data.status !== undefined ? data.status : existingRequest.status;
-    const finalAssignee = data.assignedWorkerId !== undefined ? data.assignedWorkerId : existingRequest.assignedWorkerId;
+    const finalAssignee =
+      data.assignedWorkerId !== undefined
+        ? data.assignedWorkerId
+        : existingRequest.assignedWorkerId;
 
     if (finalStatus !== "pending" && !finalAssignee) {
       throw new Error("Cannot move maintenance request: No worker is assigned.");
@@ -171,7 +211,7 @@ export const updateMaintenanceRequestFn = createServerFn({ method: "POST" })
       if (data.status === "resolved") {
         throw new Error("Only landlords or managers can set status to Resolved.");
       }
-      
+
       // Strip priority and assignee modifications for workers
       const workerPayload: Record<string, any> = {};
       if (data.status !== undefined) workerPayload.status = data.status;
@@ -203,10 +243,17 @@ export const updateMaintenanceRequestFn = createServerFn({ method: "POST" })
         const worker = await getProfileById(data.assignedWorkerId);
         if (worker && worker.email) {
           const { units, properties } = await import("../db/schema");
-          const [unit] = await db.select().from(units).where(eq(units.id, existingRequest.unitId)).limit(1);
-          const [property] = unit ? await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1) : [null];
-          const unitLabel = unit && property ? `Apt ${unit.unitNumber} (${property.name})` : "Assigned Unit";
-          
+          const [unit] = await db
+            .select()
+            .from(units)
+            .where(eq(units.id, existingRequest.unitId))
+            .limit(1);
+          const [property] = unit
+            ? await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1)
+            : [null];
+          const unitLabel =
+            unit && property ? `Apt ${unit.unitNumber} (${property.name})` : "Assigned Unit";
+
           const title = existingRequest.title;
           const priority = data.priority || existingRequest.priority;
           const description = existingRequest.description;
@@ -251,42 +298,40 @@ PropEase Notifications`;
 
 // ─── Payments ──────────────────────────────────────────────
 
-export const getMyPaymentsFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    return getPaymentsByLandlord(session.id);
-  });
+export const getMyPaymentsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  return getPaymentsByLandlord(session.id);
+});
 
-export const getMyPaymentsAsTenantFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    return getPaymentsByTenant(session.id);
-  });
+export const getMyPaymentsAsTenantFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  return getPaymentsByTenant(session.id);
+});
 
 // ─── Notifications ─────────────────────────────────────────
 
-export const getMyNotificationsFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    return getNotificationsByUser(session.id);
-  });
+export const getMyNotificationsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  return getNotificationsByUser(session.id);
+});
 
 export const markNotificationReadFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string() }))
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const session = await requireAuth();
     return markNotificationRead(ctx.data.id, session.id);
   });
 
-export const markAllNotificationsReadFn = createServerFn({ method: "POST" })
-  .handler(async () => {
-    const session = await requireAuth();
-    return markAllNotificationsRead(session.id);
-  });
+export const markAllNotificationsReadFn = createServerFn({ method: "POST" }).handler(async () => {
+  const session = await requireAuth();
+  return markAllNotificationsRead(session.id);
+});
 
 export const broadcastAnnouncementFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({ propertyId: z.string().nullable(), title: z.string(), body: z.string() }))
-  .handler(async (ctx: any) => {
+  .inputValidator(
+    z.object({ propertyId: z.string().nullable(), title: z.string(), body: z.string() }),
+  )
+  .handler(async (ctx) => {
     const session = await requireAuth();
     if (session.role !== "landlord") {
       throw new Error("Only landlords can broadcast announcements.");
@@ -297,23 +342,21 @@ export const broadcastAnnouncementFn = createServerFn({ method: "POST" })
 
 // ─── Dashboard ─────────────────────────────────────────────
 
-export const getDashboardFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    return getDashboardStats(session.id);
-  });
+export const getDashboardFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  return getDashboardStats(session.id);
+});
 
 // ─── Tenant Dashboard ──────────────────────────────────────
 
-export const getTenantDashboardFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    return getTenantDashboard(session.id);
-  });
+export const getTenantDashboardFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  return getTenantDashboard(session.id);
+});
 
 export const payRentFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ cardNumber: z.string() }))
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const session = await requireAuth();
     if (session.role !== "tenant") throw new Error("Only tenants can pay rent.");
     const { cardNumber } = ctx.data;
@@ -324,16 +367,16 @@ export const payRentFn = createServerFn({ method: "POST" })
     return payTenantPayment(session.id);
   });
 
-export const generateRentInvoicesFn = createServerFn({ method: "POST" })
-  .handler(async () => {
-    const session = await requireAuth();
-    if (session.role !== "landlord") throw new Error("Only landlords can trigger invoice generation.");
-    return generateRentInvoices(session.id);
-  });
+export const generateRentInvoicesFn = createServerFn({ method: "POST" }).handler(async () => {
+  const session = await requireAuth();
+  if (session.role !== "landlord")
+    throw new Error("Only landlords can trigger invoice generation.");
+  return generateRentInvoices(session.id);
+});
 
 export const getMaintenanceLogsFn = createServerFn({ method: "GET" })
   .inputValidator(z.object({ requestId: z.string() }))
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const session = await requireAuth();
     const { requestId } = ctx.data;
 
@@ -342,7 +385,11 @@ export const getMaintenanceLogsFn = createServerFn({ method: "GET" })
     const { maintenanceRequests } = await import("../db/schema");
     const { eq } = await import("drizzle-orm");
     const db = await getDb();
-    const [request] = await db.select().from(maintenanceRequests).where(eq(maintenanceRequests.id, requestId)).limit(1);
+    const [request] = await db
+      .select()
+      .from(maintenanceRequests)
+      .where(eq(maintenanceRequests.id, requestId))
+      .limit(1);
 
     if (!request) {
       throw new Error("Maintenance request not found");
@@ -360,7 +407,11 @@ export const getMaintenanceLogsFn = createServerFn({ method: "GET" })
       const { properties, units } = await import("../db/schema");
       const [unit] = await db.select().from(units).where(eq(units.id, request.unitId)).limit(1);
       if (!unit) throw new Error("Unit not found");
-      const [prop] = await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+      const [prop] = await db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, unit.propertyId))
+        .limit(1);
       if (!prop || prop.landlordId !== session.id) {
         throw new Error("Unauthorized to access logs for this property.");
       }
@@ -370,8 +421,15 @@ export const getMaintenanceLogsFn = createServerFn({ method: "GET" })
       const [unit] = await db.select().from(units).where(eq(units.id, request.unitId)).limit(1);
       if (!unit) throw new Error("Unit not found");
       const { and } = await import("drizzle-orm");
-      const [pw] = await db.select().from(propertyWorkers)
-        .where(and(eq(propertyWorkers.propertyId, unit.propertyId), eq(propertyWorkers.profileId, session.id)))
+      const [pw] = await db
+        .select()
+        .from(propertyWorkers)
+        .where(
+          and(
+            eq(propertyWorkers.propertyId, unit.propertyId),
+            eq(propertyWorkers.profileId, session.id),
+          ),
+        )
         .limit(1);
       if (!pw && request.assignedWorkerId !== session.id) {
         throw new Error("Unauthorized to access logs for this property.");
@@ -383,7 +441,7 @@ export const getMaintenanceLogsFn = createServerFn({ method: "GET" })
 
 export const addMaintenanceLogFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ requestId: z.string(), content: z.string(), isInternal: z.boolean() }))
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const session = await requireAuth();
     const { requestId, content, isInternal } = ctx.data;
 
@@ -392,7 +450,11 @@ export const addMaintenanceLogFn = createServerFn({ method: "POST" })
     const { maintenanceRequests } = await import("../db/schema");
     const { eq } = await import("drizzle-orm");
     const db = await getDb();
-    const [request] = await db.select().from(maintenanceRequests).where(eq(maintenanceRequests.id, requestId)).limit(1);
+    const [request] = await db
+      .select()
+      .from(maintenanceRequests)
+      .where(eq(maintenanceRequests.id, requestId))
+      .limit(1);
 
     if (!request) {
       throw new Error("Maintenance request not found");
@@ -412,7 +474,11 @@ export const addMaintenanceLogFn = createServerFn({ method: "POST" })
       const { properties, units } = await import("../db/schema");
       const [unit] = await db.select().from(units).where(eq(units.id, request.unitId)).limit(1);
       if (!unit) throw new Error("Unit not found");
-      const [prop] = await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+      const [prop] = await db
+        .select()
+        .from(properties)
+        .where(eq(properties.id, unit.propertyId))
+        .limit(1);
       if (!prop || prop.landlordId !== session.id) {
         throw new Error("Unauthorized to comment on this request.");
       }
@@ -422,8 +488,15 @@ export const addMaintenanceLogFn = createServerFn({ method: "POST" })
       const [unit] = await db.select().from(units).where(eq(units.id, request.unitId)).limit(1);
       if (!unit) throw new Error("Unit not found");
       const { and } = await import("drizzle-orm");
-      const [pw] = await db.select().from(propertyWorkers)
-        .where(and(eq(propertyWorkers.propertyId, unit.propertyId), eq(propertyWorkers.profileId, session.id)))
+      const [pw] = await db
+        .select()
+        .from(propertyWorkers)
+        .where(
+          and(
+            eq(propertyWorkers.propertyId, unit.propertyId),
+            eq(propertyWorkers.profileId, session.id),
+          ),
+        )
         .limit(1);
       if (!pw && request.assignedWorkerId !== session.id) {
         throw new Error("Unauthorized to comment on this request.");
@@ -440,22 +513,23 @@ export const addMaintenanceLogFn = createServerFn({ method: "POST" })
     });
   });
 
-export const getLandlordActiveLeasesFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    if (session.role !== "landlord") throw new Error("Only landlords can view active leases.");
-    return getLandlordActiveLeases(session.id);
-  });
+export const getLandlordActiveLeasesFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  if (session.role !== "landlord") throw new Error("Only landlords can view active leases.");
+  return getLandlordActiveLeases(session.id);
+});
 
 export const createManualPaymentFn = createServerFn({ method: "POST" })
-  .inputValidator(z.object({
-    leaseId: z.string(),
-    tenantId: z.string(),
-    amount: z.number(),
-    category: z.enum(["rent", "deposit", "utility", "late_fee"]),
-    paidDate: z.string(),
-  }))
-  .handler(async (ctx: any) => {
+  .inputValidator(
+    z.object({
+      leaseId: z.string(),
+      tenantId: z.string(),
+      amount: z.number(),
+      category: z.enum(["rent", "deposit", "utility", "late_fee"]),
+      paidDate: z.string(),
+    }),
+  )
+  .handler(async (ctx) => {
     const session = await requireAuth();
     if (session.role !== "landlord") throw new Error("Only landlords can log manual payments.");
     return createManualPayment(session.id, ctx.data);
@@ -463,7 +537,7 @@ export const createManualPaymentFn = createServerFn({ method: "POST" })
 
 export const terminateLeaseFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ leaseId: z.string() }))
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const session = await requireAuth();
     if (session.role !== "landlord" && session.role !== "manager") {
       throw new Error("Only landlords and managers can terminate leases.");
@@ -473,7 +547,7 @@ export const terminateLeaseFn = createServerFn({ method: "POST" })
 
 export const renewLeaseFn = createServerFn({ method: "POST" })
   .inputValidator(z.object({ leaseId: z.string(), newEndDate: z.string(), newRent: z.number() }))
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const session = await requireAuth();
     if (session.role !== "landlord" && session.role !== "manager") {
       throw new Error("Only landlords and managers can renew leases.");

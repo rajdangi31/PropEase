@@ -5,8 +5,9 @@ This document tracks all significant modifications and feature additions made to
 ## [2026-05-31] - Security Fixes & Advanced Property Search
 
 ### Security and Architecture Fixes
+
 - **Authentication Resilience**: Removed hardcoded `JWT_SECRET` fallbacks in `src/lib/auth-crypto.ts` to prevent trivial session forging on missing environments.
-- **Resource Ownership Guards**: 
+- **Resource Ownership Guards**:
   - Enforced landlord ID verification in `src/lib/property-server.ts` for reading units, creating units, and managing property invitations.
   - Hardened document fetching in `src/lib/document-server.ts` to verify the requesting landlord actively owns the specific tenant's unit.
 - **Role Routing Enforcement**: Added a hard check for `user.role === "tenant"` in `src/routes/tenant.tsx` loader.
@@ -15,6 +16,7 @@ This document tracks all significant modifications and feature additions made to
 - **SQL Injection Prevention**: Refactored `src/db/queries.ts` to fully remove raw SQL mapping (`sql.raw`) arrays and replaced them with the ORM-native `inArray` operator.
 
 ### New Feature: Advanced Property Search System
+
 - **Database Enhancements**: Expanded `src/db/schema.ts` `properties` with `city` and `locality` columns. Upgraded `units` with `furnishedStatus`. Added optimization indexes across both tables to support lightning-fast lookups.
 - **Backend API**: Created `src/lib/search-server.ts` featuring a highly dynamic filtering API, mitigating N+1 problems with efficient relational joins, enabling sorting by price/creation-date, and supporting offset/limit pagination.
 - **URL-State Syncing**: Built `src/hooks/usePropertySearch.ts` integrating TanStack Query and TanStack Router so that the user's active filter criteria automatically propagates to the URL parameters (allowing link sharing) alongside 5-minute data caching.
@@ -26,6 +28,7 @@ This document tracks all significant modifications and feature additions made to
   - `src/components/search/PaginationControls.tsx`: Reusable previous/next navigation.
 
 ### New Feature: Map View & Nearby Insights System
+
 - **Location Intelligence Engine**: Built `src/utils/scoring.ts` to calculate a proprietary 100-point location score based on transit (35%), education (25%), healthcare (20%), groceries (10%), and dining (10%). It automatically generates human-readable AI summaries based on amenity density.
 - **Overpass API Integration**: Developed `src/services/overpassService.ts` utilizing a single, highly-optimized Overpass query to fetch 5 categories of Points of Interest (POIs) simultaneously within a 2km radius to avoid API rate limits, featuring exponential backoff retries.
 - **Drizzle Caching Layer**: Engineered a 30-day SQLite caching layer in `src/lib/insights-server.ts` storing results in new `property_insights` and `nearby_places` tables to drastically improve performance and minimize external API hits.
@@ -34,6 +37,7 @@ This document tracks all significant modifications and feature additions made to
 - **Dedicated Route**: Created `src/routes/property/$propertyId.tsx` to beautifully showcase the map on the left and the scrollable insights panel on the right (stacked vertically on mobile devices).
 
 ### New Feature: AI Rent Estimation & Pricing Intelligence
+
 - **Data Model Extensions**: Added `parking`, `balcony_count`, and `property_age` natively to the `units` table to enable deterministic pricing analysis without JSON parsing overhead. Added `locality_stats` and `rent_predictions` to cache estimates.
 - **Dynamic Pricing Service**: Built `src/services/predictionService.ts` to dynamically calculate average `rent/sqft` from existing local listings, continuously self-improving the model's baseline as more properties are added.
 - **Real Comparables Queries**: Engineered an active query system in the prediction service that fetches real nearby properties matching the same property type, ±1 bedroom, and ±20% area.
@@ -41,4 +45,3 @@ This document tracks all significant modifications and feature additions made to
 - **AI Explanation Generator**: Automatically builds human-readable explanations summarizing the key factors driving a property's estimated price.
 - **Confidence Scoring Engine**: Evaluates prediction accuracy dynamically based on data completeness (40%), comparable listing density (40%), and location intelligence availability (20%).
 - **Interactive UI Components**: Developed a stunning suite of pricing components (`PricePredictionCard`, `PriceFairnessMeter`, `RentRangeChart`, `ConfidenceMeter`, `ComparableProperties`) seamlessly integrated into the top of the `/property/$propertyId` route.
-

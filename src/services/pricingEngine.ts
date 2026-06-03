@@ -34,12 +34,9 @@ export function calculateConfidenceScore(inputs: ConfidenceInputs): number {
   return score;
 }
 
-export function runPricingEngine(
-  attributes: PropertyPricingAttributes,
-  comparableCount: number
-) {
+export function runPricingEngine(attributes: PropertyPricingAttributes, comparableCount: number) {
   const result = calculateRentEstimate(attributes);
-  
+
   const confidenceInputs: ConfidenceInputs = {
     hasSqft: !!attributes.sqft,
     hasAge: attributes.propertyAge !== undefined,

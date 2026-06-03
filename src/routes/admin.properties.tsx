@@ -5,7 +5,12 @@ import { Building2, MapPin, Plus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,8 +22,13 @@ import {
   createUnitFn,
   updateUnitFn,
 } from "@/lib/property-server";
+import { AddPropertyDialog } from "@/components/admin/AddPropertyDialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import type { PropertyWithCounts, UnitWithTenant } from "@/db/queries";
 
@@ -40,9 +50,17 @@ export const Route = createFileRoute("/admin/properties")({
 type UnitStatus = "occupied" | "vacant" | "maintenance";
 
 const statusStyle: Record<UnitStatus, { bg: string; text: string; label: string }> = {
-  occupied:    { bg: "bg-success/10 border-success/30", text: "text-success", label: "Occupied" },
-  vacant:      { bg: "bg-destructive/10 border-destructive/30", text: "text-destructive", label: "Vacant" },
-  maintenance: { bg: "bg-warning/10 border-warning/40", text: "text-warning", label: "Maintenance" },
+  occupied: { bg: "bg-success/10 border-success/30", text: "text-success", label: "Occupied" },
+  vacant: {
+    bg: "bg-destructive/10 border-destructive/30",
+    text: "text-destructive",
+    label: "Vacant",
+  },
+  maintenance: {
+    bg: "bg-warning/10 border-warning/40",
+    text: "text-warning",
+    label: "Maintenance",
+  },
 };
 
 function PropertiesPage() {
@@ -51,7 +69,7 @@ function PropertiesPage() {
 
   const [activeProperty, setActiveProperty] = useState(properties[0]?.id ?? "");
   const [unitsMap, setUnitsMap] = useState<Record<string, UnitWithTenant[]>>(
-    properties[0] ? { [properties[0].id]: initialUnits } : {}
+    properties[0] ? { [properties[0].id]: initialUnits } : {},
   );
   const [openUnit, setOpenUnit] = useState<string | null>(null);
   const [showAddProperty, setShowAddProperty] = useState(false);
@@ -65,7 +83,6 @@ function PropertiesPage() {
       setActiveProperty(properties[0].id);
     }
   }, [properties, activeProperty]);
-
 
   // Property form state
   const [propName, setPropName] = useState("");
@@ -207,7 +224,8 @@ function PropertiesPage() {
         </div>
         <h2 className="mt-6 text-xl font-semibold tracking-tight">Add your first property</h2>
         <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          Properties are the foundation of your portfolio. Add a building to start managing units, tenants, and leases.
+          Properties are the foundation of your portfolio. Add a building to start managing units,
+          tenants, and leases.
         </p>
         <Button className="mt-6" onClick={() => setShowAddProperty(true)}>
           <Plus className="mr-1.5 h-4 w-4" /> Add Property
@@ -279,7 +297,9 @@ function PropertiesPage() {
         <CardContent className="p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
-              <h3 className="font-semibold">{properties.find((p) => p.id === activeProperty)?.name} · Units</h3>
+              <h3 className="font-semibold">
+                {properties.find((p) => p.id === activeProperty)?.name} · Units
+              </h3>
               <p className="text-xs text-muted-foreground">Click a tile to view details</p>
             </div>
             <div className="flex items-center gap-3 text-xs text-muted-foreground">
@@ -301,7 +321,9 @@ function PropertiesPage() {
                   className={`group flex aspect-square flex-col items-center justify-center rounded-xl border-2 p-2 text-center transition hover:scale-[1.03] ${s.bg}`}
                 >
                   <span className={`text-base font-bold ${s.text}`}>{u.number}</span>
-                  <span className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">{s.label}</span>
+                  <span className="mt-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
+                    {s.label}
+                  </span>
                 </button>
               );
             })}
@@ -337,7 +359,9 @@ function PropertiesPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button variant="outline" onClick={handleOpenEdit}>Edit unit</Button>
+                <Button variant="outline" onClick={handleOpenEdit}>
+                  Edit unit
+                </Button>
                 {unit.tenant && <Button>View tenant</Button>}
               </DialogFooter>
             </>
@@ -370,30 +394,66 @@ function PropertiesPage() {
             <div className="mt-4 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="unit-number">Unit number</Label>
-                <Input id="unit-number" placeholder="e.g. 101, 2A" value={unitNumber} onChange={(e) => setUnitNumber(e.target.value)} required />
+                <Input
+                  id="unit-number"
+                  placeholder="e.g. 101, 2A"
+                  value={unitNumber}
+                  onChange={(e) => setUnitNumber(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="unit-rent">Monthly rent ($)</Label>
-                <Input id="unit-rent" type="number" step="0.01" placeholder="2400" value={unitRent} onChange={(e) => setUnitRent(e.target.value)} required />
+                <Input
+                  id="unit-rent"
+                  type="number"
+                  step="0.01"
+                  placeholder="2400"
+                  value={unitRent}
+                  onChange={(e) => setUnitRent(e.target.value)}
+                  required
+                />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="unit-sqft">Sqft</Label>
-                  <Input id="unit-sqft" type="number" placeholder="800" value={unitSqft} onChange={(e) => setUnitSqft(e.target.value)} />
+                  <Input
+                    id="unit-sqft"
+                    type="number"
+                    placeholder="800"
+                    value={unitSqft}
+                    onChange={(e) => setUnitSqft(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="unit-beds">Beds</Label>
-                  <Input id="unit-beds" type="number" placeholder="2" value={unitBeds} onChange={(e) => setUnitBeds(e.target.value)} />
+                  <Input
+                    id="unit-beds"
+                    type="number"
+                    placeholder="2"
+                    value={unitBeds}
+                    onChange={(e) => setUnitBeds(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="unit-baths">Baths</Label>
-                  <Input id="unit-baths" type="number" placeholder="1" value={unitBaths} onChange={(e) => setUnitBaths(e.target.value)} />
+                  <Input
+                    id="unit-baths"
+                    type="number"
+                    placeholder="1"
+                    value={unitBaths}
+                    onChange={(e) => setUnitBaths(e.target.value)}
+                  />
                 </div>
               </div>
             </div>
             <DialogFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={() => setShowAddUnit(false)}>Cancel</Button>
-              <Button type="submit" disabled={isLoading}>{isLoading ? "Creating..." : "Create Unit"}</Button>
+              <Button type="button" variant="outline" onClick={() => setShowAddUnit(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Creating..." : "Create Unit"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -405,53 +465,94 @@ function PropertiesPage() {
           <form onSubmit={handleSaveEditUnit}>
             <DialogHeader>
               <DialogTitle>Edit Unit</DialogTitle>
-              <DialogDescription>
-                Modify unit details and status.
-              </DialogDescription>
+              <DialogDescription>Modify unit details and status.</DialogDescription>
             </DialogHeader>
             <div className="mt-4 space-y-4">
               <div className="space-y-1.5">
                 <Label htmlFor="edit-unit-number">Unit number</Label>
-                <Input id="edit-unit-number" placeholder="e.g. 101, 2A" value={editUnitNumber} onChange={(e) => setEditUnitNumber(e.target.value)} required />
+                <Input
+                  id="edit-unit-number"
+                  placeholder="e.g. 101, 2A"
+                  value={editUnitNumber}
+                  onChange={(e) => setEditUnitNumber(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-unit-rent">Monthly rent ($)</Label>
-                <Input id="edit-unit-rent" type="number" step="0.01" placeholder="2400" value={editUnitRent} onChange={(e) => setEditUnitRent(e.target.value)} required />
+                <Input
+                  id="edit-unit-rent"
+                  type="number"
+                  step="0.01"
+                  placeholder="2400"
+                  value={editUnitRent}
+                  onChange={(e) => setEditUnitRent(e.target.value)}
+                  required
+                />
               </div>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-unit-sqft">Sqft</Label>
-                  <Input id="edit-unit-sqft" type="number" placeholder="800" value={editUnitSqft} onChange={(e) => setEditUnitSqft(e.target.value)} />
+                  <Input
+                    id="edit-unit-sqft"
+                    type="number"
+                    placeholder="800"
+                    value={editUnitSqft}
+                    onChange={(e) => setEditUnitSqft(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-unit-beds">Beds</Label>
-                  <Input id="edit-unit-beds" type="number" placeholder="2" value={editUnitBeds} onChange={(e) => setEditUnitBeds(e.target.value)} />
+                  <Input
+                    id="edit-unit-beds"
+                    type="number"
+                    placeholder="2"
+                    value={editUnitBeds}
+                    onChange={(e) => setEditUnitBeds(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="edit-unit-baths">Baths</Label>
-                  <Input id="edit-unit-baths" type="number" placeholder="1" value={editUnitBaths} onChange={(e) => setEditUnitBaths(e.target.value)} />
+                  <Input
+                    id="edit-unit-baths"
+                    type="number"
+                    placeholder="1"
+                    value={editUnitBaths}
+                    onChange={(e) => setEditUnitBaths(e.target.value)}
+                  />
                 </div>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="edit-unit-status">Status</Label>
-                <Select value={editUnitStatus} onValueChange={(val: any) => setEditUnitStatus(val)}>
+                <Select
+                  value={editUnitStatus}
+                  onValueChange={(val: UnitStatus) => setEditUnitStatus(val)}
+                >
                   <SelectTrigger id="edit-unit-status">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="vacant">Vacant</SelectItem>
-                    <SelectItem value="occupied" disabled={unit?.tenant ? false : true}>Occupied</SelectItem>
+                    <SelectItem value="occupied" disabled={unit?.tenant ? false : true}>
+                      Occupied
+                    </SelectItem>
                     <SelectItem value="maintenance">Maintenance</SelectItem>
                   </SelectContent>
                 </Select>
                 {!unit?.tenant && editUnitStatus === "occupied" && (
-                  <p className="text-[10px] text-muted-foreground mt-1">To mark as occupied, assign a tenant by sending them an invitation.</p>
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    To mark as occupied, assign a tenant by sending them an invitation.
+                  </p>
                 )}
               </div>
             </div>
             <DialogFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={() => setShowEditUnit(false)}>Cancel</Button>
-              <Button type="submit" disabled={isLoading}>{isLoading ? "Saving..." : "Save Changes"}</Button>
+              <Button type="button" variant="outline" onClick={() => setShowEditUnit(false)}>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isLoading}>
+                {isLoading ? "Saving..." : "Save Changes"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>
@@ -461,42 +562,6 @@ function PropertiesPage() {
 }
 
 // ─── Shared UI helpers ─────────────────────────────────────
-
-function AddPropertyDialog({
-  open, onOpenChange, name, address, onNameChange, onAddressChange, onSubmit, isLoading,
-}: {
-  open: boolean; onOpenChange: (o: boolean) => void;
-  name: string; address: string;
-  onNameChange: (v: string) => void; onAddressChange: (v: string) => void;
-  onSubmit: (e: React.FormEvent) => void; isLoading: boolean;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <form onSubmit={onSubmit}>
-          <DialogHeader>
-            <DialogTitle>Add Property</DialogTitle>
-            <DialogDescription>Add a new building to your portfolio</DialogDescription>
-          </DialogHeader>
-          <div className="mt-4 space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="prop-name">Property name</Label>
-              <Input id="prop-name" placeholder="e.g. Maple Heights" value={name} onChange={(e) => onNameChange(e.target.value)} required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="prop-address">Address</Label>
-              <Input id="prop-address" placeholder="1200 Maple Ave, Brooklyn, NY" value={address} onChange={(e) => onAddressChange(e.target.value)} required />
-            </div>
-          </div>
-          <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-            <Button type="submit" disabled={isLoading}>{isLoading ? "Creating..." : "Create Property"}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function Legend({ color, label }: { color: string; label: string }) {
   return (

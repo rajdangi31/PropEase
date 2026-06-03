@@ -7,7 +7,11 @@ type PaginationControlsProps = {
   onPageChange: (page: number) => void;
 };
 
-export function PaginationControls({ currentPage, totalPages, onPageChange }: PaginationControlsProps) {
+export function PaginationControls({
+  currentPage,
+  totalPages,
+  onPageChange,
+}: PaginationControlsProps) {
   if (totalPages <= 1) return null;
 
   return (
@@ -20,7 +24,7 @@ export function PaginationControls({ currentPage, totalPages, onPageChange }: Pa
       >
         <ChevronLeft className="w-4 h-4" />
       </Button>
-      
+
       <span className="text-sm font-medium mx-2">
         Page {currentPage} of {totalPages}
       </span>

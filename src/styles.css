@@ -55,25 +55,30 @@
   --shadow-soft: 0 1px 2px 0 oklch(0.2 0.04 265 / 0.04), 0 4px 16px -4px oklch(0.2 0.04 265 / 0.08);
   --shadow-card: 0 1px 3px 0 oklch(0.2 0.04 265 / 0.06), 0 8px 24px -8px oklch(0.2 0.04 265 / 0.12);
   --gradient-primary: linear-gradient(135deg, oklch(0.28 0.09 265) 0%, oklch(0.5 0.18 275) 100%);
-  --gradient-hero: linear-gradient(135deg, oklch(0.22 0.06 265) 0%, oklch(0.35 0.14 275) 50%, oklch(0.5 0.2 280) 100%);
+  --gradient-hero: linear-gradient(
+    135deg,
+    oklch(0.22 0.06 265) 0%,
+    oklch(0.35 0.14 275) 50%,
+    oklch(0.5 0.2 280) 100%
+  );
 }
 
 :root {
   --radius: 0.75rem;
   /* PropEase brand: deep navy primary, indigo accent */
-  --background: oklch(0.985 0.003 265);     /* #F8F9FC */
+  --background: oklch(0.985 0.003 265); /* #F8F9FC */
   --foreground: oklch(0.22 0.04 265);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.22 0.04 265);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.22 0.04 265);
-  --primary: oklch(0.27 0.07 265);          /* #1E2A4A deep navy */
+  --primary: oklch(0.27 0.07 265); /* #1E2A4A deep navy */
   --primary-foreground: oklch(0.985 0.003 265);
   --secondary: oklch(0.96 0.008 265);
   --secondary-foreground: oklch(0.27 0.07 265);
   --muted: oklch(0.96 0.008 265);
   --muted-foreground: oklch(0.5 0.03 265);
-  --accent: oklch(0.62 0.19 277);           /* #6366F1 indigo */
+  --accent: oklch(0.62 0.19 277); /* #6366F1 indigo */
   --accent-foreground: oklch(0.985 0.003 265);
   --destructive: oklch(0.6 0.22 25);
   --destructive-foreground: oklch(0.985 0.003 265);
@@ -91,7 +96,7 @@
   --chart-3: oklch(0.78 0.16 75);
   --chart-4: oklch(0.6 0.22 25);
   --chart-5: oklch(0.55 0.14 220);
-  --sidebar: oklch(0.22 0.05 265);          /* dark navy sidebar */
+  --sidebar: oklch(0.22 0.05 265); /* dark navy sidebar */
   --sidebar-foreground: oklch(0.92 0.01 265);
   --sidebar-primary: oklch(0.62 0.19 277);
   --sidebar-primary-foreground: oklch(0.985 0.003 265);
@@ -147,7 +152,8 @@
     border-color: var(--color-border);
   }
 
-  html, body {
+  html,
+  body {
     font-family: var(--font-sans);
   }
 

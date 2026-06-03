@@ -5,7 +5,7 @@ import crypto from "crypto";
 
 export async function getDynamicLocalityPricing(city: string, locality: string) {
   const db = await getDb();
-  
+
   // 1. Check cache first (valid for 24 hours)
   const [cached] = await db
     .select()
@@ -15,8 +15,8 @@ export async function getDynamicLocalityPricing(city: string, locality: string) 
 
   const now = new Date();
   const ONE_DAY = 24 * 60 * 60 * 1000;
-  
-  if (cached && (now.getTime() - new Date(cached.updatedAt!).getTime() < ONE_DAY)) {
+
+  if (cached && now.getTime() - new Date(cached.updatedAt!).getTime() < ONE_DAY) {
     return cached.avgPricePerSqft;
   }
 
@@ -25,20 +25,16 @@ export async function getDynamicLocalityPricing(city: string, locality: string) 
     .select({
       avgPrice: sql<number>`AVG(CAST(${units.currentMarketRent} AS REAL) / ${units.sqft})`,
       minPrice: sql<number>`MIN(CAST(${units.currentMarketRent} AS REAL) / ${units.sqft})`,
-      maxPrice: sql<number>`MAX(CAST(${units.currentMarketRent} AS REAL) / ${units.sqft})`
+      maxPrice: sql<number>`MAX(CAST(${units.currentMarketRent} AS REAL) / ${units.sqft})`,
     })
     .from(units)
     .innerJoin(properties, eq(units.propertyId, properties.id))
     .where(
-      and(
-        eq(properties.city, city),
-        eq(properties.locality, locality),
-        sql`${units.sqft} > 0`
-      )
+      and(eq(properties.city, city), eq(properties.locality, locality), sql`${units.sqft} > 0`),
     );
 
   const stats = result[0];
-  
+
   // Fallback if no listings exist in this locality yet (e.g. ₹45/sqft)
   if (!stats || !stats.avgPrice) {
     return 4500; // Return cents per sqft if we are storing cents, wait rent is in cents, so rent/sqft is in cents/sqft
@@ -67,7 +63,7 @@ export async function getComparableProperties(
   locality: string,
   beds: number,
   sqft: number,
-  limit: number = 5
+  limit: number = 5,
 ) {
   const db = await getDb();
   const minBeds = Math.max(0, beds - 1);
@@ -90,8 +86,8 @@ export async function getComparableProperties(
       and(
         eq(properties.locality, locality),
         between(units.beds, minBeds, maxBeds),
-        between(units.sqft, minSqft, maxSqft)
-      )
+        between(units.sqft, minSqft, maxSqft),
+      ),
     )
     .limit(limit);
 

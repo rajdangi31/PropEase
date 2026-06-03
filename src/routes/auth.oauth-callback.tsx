@@ -2,7 +2,9 @@ import { createFileRoute, redirect, isRedirect } from "@tanstack/react-router";
 import { verifyGoogleCallbackFn } from "@/lib/oauth-server";
 
 export const Route = createFileRoute("/auth/oauth-callback")({
-  validateSearch: (search: Record<string, unknown>): { code?: string; state?: string; error?: string } => ({
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { code?: string; state?: string; error?: string } => ({
     code: search.code as string | undefined,
     state: search.state as string | undefined,
     error: search.error as string | undefined,
@@ -32,7 +34,7 @@ export const Route = createFileRoute("/auth/oauth-callback")({
 
       const role = result.profile.role;
       const target = role === "tenant" ? "/tenant" : "/admin";
-      
+
       throw redirect({ to: target });
     } catch (err: any) {
       if (isRedirect(err)) {

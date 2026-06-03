@@ -5,25 +5,25 @@ import { properties, units } from "../db/schema";
 import { eq, and, gte, lte, like, desc, asc, sql } from "drizzle-orm";
 
 export const searchPropertiesFn = createServerFn({ method: "GET" })
-  .inputValidator(z.object({
-    city: z.string().optional(),
-    locality: z.string().optional(),
-    beds: z.number().optional(),
-    minRent: z.number().optional(),
-    maxRent: z.number().optional(),
-    furnishedStatus: z.enum(["unfurnished", "semi-furnished", "fully-furnished"]).optional(),
-    amenities: z.array(z.string()).optional(),
-    sortBy: z.enum(["newest", "price_asc", "price_desc"]).default("newest"),
-    page: z.number().default(1),
-    limit: z.number().default(12),
-  }))
+  .inputValidator(
+    z.object({
+      city: z.string().optional(),
+      locality: z.string().optional(),
+      beds: z.number().optional(),
+      minRent: z.number().optional(),
+      maxRent: z.number().optional(),
+      furnishedStatus: z.enum(["unfurnished", "semi-furnished", "fully-furnished"]).optional(),
+      amenities: z.array(z.string()).optional(),
+      sortBy: z.enum(["newest", "price_asc", "price_desc"]).default("newest"),
+      page: z.number().default(1),
+      limit: z.number().default(12),
+    }),
+  )
   .handler(async (ctx) => {
     const data = ctx.data;
     const db = await getDb();
 
-    const filters = [
-      eq(units.status, "vacant")
-    ];
+    const filters = [eq(units.status, "vacant")];
 
     if (data.city) filters.push(like(properties.city, `%${data.city}%`));
     if (data.locality) filters.push(like(properties.locality, `%${data.locality}%`));
@@ -31,9 +31,9 @@ export const searchPropertiesFn = createServerFn({ method: "GET" })
     if (data.minRent !== undefined) filters.push(gte(units.currentMarketRent, data.minRent * 100)); // Rent is stored in cents
     if (data.maxRent !== undefined) filters.push(lte(units.currentMarketRent, data.maxRent * 100));
     if (data.furnishedStatus) filters.push(eq(units.furnishedStatus, data.furnishedStatus));
-    
+
     if (data.amenities && data.amenities.length > 0) {
-      data.amenities.forEach(amenity => {
+      data.amenities.forEach((amenity) => {
         filters.push(like(units.amenities, `%${amenity}%`));
       });
     }
@@ -84,6 +84,6 @@ export const searchPropertiesFn = createServerFn({ method: "GET" })
         page: data.page,
         limit: data.limit,
         totalPages: Math.ceil(count / data.limit),
-      }
+      },
     };
   });

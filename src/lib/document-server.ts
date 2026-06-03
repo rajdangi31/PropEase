@@ -43,10 +43,11 @@ async function getBucket() {
       const eventStorage = (globalThis as any)[storageKey];
       const event = eventStorage?.getStore()?.h3Event;
       if (event) {
-        env = event.context?.cloudflare?.env || 
-              event.node?.req?.runtime?.cloudflare?.env ||
-              event.node?.req?.__cloudflare_env || 
-              {};
+        env =
+          event.context?.cloudflare?.env ||
+          event.node?.req?.runtime?.cloudflare?.env ||
+          event.node?.req?.__cloudflare_env ||
+          {};
       }
     } catch (error) {
       // Ignore errors if context is accessed outside request lifecycle
@@ -61,7 +62,9 @@ async function getBucket() {
 
   const bucket = env.BUCKET;
   if (!bucket) {
-    throw new Error("R2 Bucket binding 'BUCKET' not found in server context, Vinxi event context, process.env, or globalThis.");
+    throw new Error(
+      "R2 Bucket binding 'BUCKET' not found in server context, Vinxi event context, process.env, or globalThis.",
+    );
   }
   return bucket;
 }
@@ -70,24 +73,33 @@ async function getBucket() {
 function getMimeType(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase();
   switch (ext) {
-    case "pdf": return "application/pdf";
+    case "pdf":
+      return "application/pdf";
     case "jpg":
-    case "jpeg": return "image/jpeg";
-    case "png": return "image/png";
-    case "doc": return "application/msword";
-    case "docx": return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-    case "txt": return "text/plain";
-    default: return "application/octet-stream";
+    case "jpeg":
+      return "image/jpeg";
+    case "png":
+      return "image/png";
+    case "doc":
+      return "application/msword";
+    case "docx":
+      return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+    case "txt":
+      return "text/plain";
+    default:
+      return "application/octet-stream";
   }
 }
 
 export const uploadDocumentFn = createServerFn({ method: "POST" })
-  .inputValidator((d: {
-    name: string;
-    type: "lease_doc" | "id_proof" | "income_proof" | "inspection_report";
-    content: string; // Base64 content
-  }) => d)
-  .handler(async (ctx: any) => {
+  .inputValidator(
+    (d: {
+      name: string;
+      type: "lease_doc" | "id_proof" | "income_proof" | "inspection_report";
+      content: string; // Base64 content
+    }) => d,
+  )
+  .handler(async (ctx) => {
     const session = await requireAuth();
     const data = ctx.data;
 
@@ -104,7 +116,7 @@ export const uploadDocumentFn = createServerFn({ method: "POST" })
     // 2. Put file in R2
     const bucket = await getBucket();
     const storageKey = `documents/${crypto.randomUUID()}_${data.name}`;
-    
+
     // Convert base64 to binary buffer/Uint8Array
     const binaryString = atob(data.content);
     const bytes = new Uint8Array(binaryString.length);
@@ -134,39 +146,36 @@ export const uploadDocumentFn = createServerFn({ method: "POST" })
     return doc;
   });
 
-export const getMyDocumentsFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    if (session.role !== "tenant") {
-      throw new Error("Only tenants can fetch their own documents.");
-    }
-    return getDocumentsByTenant(session.id);
-  });
+export const getMyDocumentsFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  if (session.role !== "tenant") {
+    throw new Error("Only tenants can fetch their own documents.");
+  }
+  return getDocumentsByTenant(session.id);
+});
 
 export const getTenantDocumentsFn = createServerFn({ method: "GET" })
   .inputValidator((d: { tenantId: string }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const session = await requireAuth();
     if (session.role !== "landlord" && session.role !== "manager") {
       throw new Error("Only landlords and managers can view tenant documents.");
     }
-    
+
     if (session.role === "landlord") {
       const { getDb } = await import("../db/index");
       const { properties, units, leases, leaseTenants } = await import("../db/schema");
       const { eq, and } = await import("drizzle-orm");
       const db = await getDb();
-      
-      const links = await db.select()
+
+      const links = await db
+        .select()
         .from(leaseTenants)
         .innerJoin(leases, eq(leaseTenants.leaseId, leases.id))
         .innerJoin(units, eq(leases.unitId, units.id))
         .innerJoin(properties, eq(units.propertyId, properties.id))
         .where(
-          and(
-            eq(leaseTenants.profileId, ctx.data.tenantId),
-            eq(properties.landlordId, session.id)
-          )
+          and(eq(leaseTenants.profileId, ctx.data.tenantId), eq(properties.landlordId, session.id)),
         )
         .limit(1);
 
@@ -180,12 +189,12 @@ export const getTenantDocumentsFn = createServerFn({ method: "GET" })
 
 export const updateDocumentStatusFn = createServerFn({ method: "POST" })
   .inputValidator((d: { id: string; status: "approved" | "rejected" }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const session = await requireAuth();
     if (session.role !== "landlord" && session.role !== "manager") {
       throw new Error("Only landlords and managers can update document status.");
     }
-    
+
     // Verify document exists
     const doc = await getDocumentById(ctx.data.id);
     if (!doc) {
@@ -212,7 +221,7 @@ export const updateDocumentStatusFn = createServerFn({ method: "POST" })
 
 export const downloadDocumentFn = createServerFn({ method: "GET" })
   .inputValidator((d: { id: string }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const session = await requireAuth();
     const doc = await getDocumentById(ctx.data.id);
     if (!doc) {
@@ -247,7 +256,7 @@ export const downloadDocumentFn = createServerFn({ method: "GET" })
 
     const arr = await object.arrayBuffer();
     const uint8 = new Uint8Array(arr);
-    
+
     // Convert to Base64 in a chunk-safe manner to prevent stack overflow on large files
     let binary = "";
     const len = uint8.byteLength;
@@ -263,12 +272,10 @@ export const downloadDocumentFn = createServerFn({ method: "GET" })
     };
   });
 
-export const getDocumentsForLandlordFn = createServerFn({ method: "GET" })
-  .handler(async () => {
-    const session = await requireAuth();
-    if (session.role !== "landlord" && session.role !== "manager") {
-      throw new Error("Only landlords and managers can view the document queue.");
-    }
-    return getDocumentsForLandlord(session.id);
-  });
-
+export const getDocumentsForLandlordFn = createServerFn({ method: "GET" }).handler(async () => {
+  const session = await requireAuth();
+  if (session.role !== "landlord" && session.role !== "manager") {
+    throw new Error("Only landlords and managers can view the document queue.");
+  }
+  return getDocumentsForLandlord(session.id);
+});

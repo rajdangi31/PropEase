@@ -8,7 +8,10 @@ const searchSchema = z.object({
   beds: z.number().optional().catch(undefined),
   minRent: z.number().optional().catch(undefined),
   maxRent: z.number().optional().catch(undefined),
-  furnishedStatus: z.enum(["unfurnished", "semi-furnished", "fully-furnished"]).optional().catch(undefined),
+  furnishedStatus: z
+    .enum(["unfurnished", "semi-furnished", "fully-furnished"])
+    .optional()
+    .catch(undefined),
   amenities: z.array(z.string()).optional().catch([]),
   sortBy: z.enum(["newest", "price_asc", "price_desc"]).optional().catch("newest"),
   page: z.number().optional().catch(1),

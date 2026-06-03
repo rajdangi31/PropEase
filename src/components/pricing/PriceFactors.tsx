@@ -11,11 +11,16 @@ export function PriceFactors({ factors }: PriceFactorsProps) {
 
   return (
     <div className="space-y-3">
-      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Contributing Factors</h4>
+      <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">
+        Contributing Factors
+      </h4>
       <ul className="space-y-2">
         <TooltipProvider>
           {factors.map((factor, idx) => (
-            <li key={idx} className="flex justify-between items-center p-2 rounded-lg bg-muted/30 border border-border text-sm">
+            <li
+              key={idx}
+              className="flex justify-between items-center p-2 rounded-lg bg-muted/30 border border-border text-sm"
+            >
               <div className="flex items-center gap-2">
                 {factor.type === "positive" ? (
                   <ArrowUpRight className="w-4 h-4 text-green-500" />
@@ -32,8 +37,11 @@ export function PriceFactors({ factors }: PriceFactorsProps) {
                   </TooltipContent>
                 </Tooltip>
               </div>
-              <span className={`font-bold ${factor.type === "positive" ? "text-green-600" : "text-red-600"}`}>
-                {factor.type === "positive" ? "+" : "-"}{factor.adjustmentPercentage}%
+              <span
+                className={`font-bold ${factor.type === "positive" ? "text-green-600" : "text-red-600"}`}
+              >
+                {factor.type === "positive" ? "+" : "-"}
+                {factor.adjustmentPercentage}%
               </span>
             </li>
           ))}

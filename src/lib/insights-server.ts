@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { getDb } from "../db/index";
-import { propertyInsights, nearbyPlaces, properties } from "../db/schema";
+import { propertyInsights, nearbyPlaces, properties, units } from "../db/schema";
 import { eq } from "drizzle-orm";
 import { fetchNearbyPlaces } from "../services/overpassService";
 import { calculateLocationScore } from "../utils/scoring";
@@ -15,7 +15,7 @@ export const getPropertyInsightsFn = createServerFn({ method: "GET" })
 
     // 1. Check cache
     const now = new Date();
-    
+
     const [existingInsight] = await db
       .select()
       .from(propertyInsights)
@@ -37,16 +37,16 @@ export const getPropertyInsightsFn = createServerFn({ method: "GET" })
         .select()
         .from(nearbyPlaces)
         .where(eq(nearbyPlaces.propertyId, propertyId));
-        
+
       const propertyUnits = await db.select().from(units).where(eq(units.propertyId, propertyId));
-        
+
       // Recalculate summary and grades dynamically from cached counts
       const scoreResult = calculateLocationScore(
         existingInsight.schoolsCount,
         existingInsight.hospitalsCount,
         existingInsight.transitCount,
         0, // we didn't store convenience count in schema explicitly, but it's fine for MVP
-        existingInsight.restaurantsCount
+        existingInsight.restaurantsCount,
       );
 
       return {
@@ -72,18 +72,18 @@ export const getPropertyInsightsFn = createServerFn({ method: "GET" })
     // 3. Fetch from OSM
     const fetchedPlaces = await fetchNearbyPlaces(property.lat, property.lon, 2000);
 
-    const schoolsCount = fetchedPlaces.filter(p => p.category === "school").length;
-    const hospitalsCount = fetchedPlaces.filter(p => p.category === "hospital").length;
-    const transitCount = fetchedPlaces.filter(p => p.category === "transit").length;
-    const supermarketsCount = fetchedPlaces.filter(p => p.category === "supermarket").length;
-    const restaurantsCount = fetchedPlaces.filter(p => p.category === "restaurant").length;
+    const schoolsCount = fetchedPlaces.filter((p) => p.category === "school").length;
+    const hospitalsCount = fetchedPlaces.filter((p) => p.category === "hospital").length;
+    const transitCount = fetchedPlaces.filter((p) => p.category === "transit").length;
+    const supermarketsCount = fetchedPlaces.filter((p) => p.category === "supermarket").length;
+    const restaurantsCount = fetchedPlaces.filter((p) => p.category === "restaurant").length;
 
     const scoreResult = calculateLocationScore(
       schoolsCount,
       hospitalsCount,
       transitCount,
       supermarketsCount,
-      restaurantsCount
+      restaurantsCount,
     );
 
     const generatedAt = now.toISOString();
@@ -109,7 +109,7 @@ export const getPropertyInsightsFn = createServerFn({ method: "GET" })
     };
 
     // Prepare inserts
-    const dbPlaces = fetchedPlaces.map(p => ({
+    const dbPlaces = fetchedPlaces.map((p) => ({
       id: crypto.randomUUID(),
       propertyId,
       category: p.category,
@@ -126,11 +126,11 @@ export const getPropertyInsightsFn = createServerFn({ method: "GET" })
     } else {
       await db.insert(propertyInsights).values(newInsight);
     }
-    
+
     if (dbPlaces.length > 0) {
       await db.insert(nearbyPlaces).values(dbPlaces);
     }
-    
+
     const propertyUnits = await db.select().from(units).where(eq(units.propertyId, propertyId));
 
     return {

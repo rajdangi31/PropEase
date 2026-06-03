@@ -3,7 +3,11 @@ import { CalendarClock, CreditCard, FileText, Home, Wrench } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { getTenantDashboardFn, getMyPaymentsAsTenantFn, getMyMaintenanceAsTenantFn } from "@/lib/data-server";
+import {
+  getTenantDashboardFn,
+  getMyPaymentsAsTenantFn,
+  getMyMaintenanceAsTenantFn,
+} from "@/lib/data-server";
 
 export const Route = createFileRoute("/tenant/")({
   loader: async () => {
@@ -28,7 +32,8 @@ function TenantDashboard() {
         </div>
         <h2 className="mt-6 text-xl font-semibold tracking-tight">Welcome to PropEase</h2>
         <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-          Your landlord hasn't assigned you to a unit yet. Once they create your lease, your dashboard will appear here.
+          Your landlord hasn't assigned you to a unit yet. Once they create your lease, your
+          dashboard will appear here.
         </p>
       </div>
     );
@@ -37,7 +42,10 @@ function TenantDashboard() {
   return (
     <div className="space-y-6">
       <Card className="overflow-hidden border-0">
-        <CardContent className="p-6 text-primary-foreground" style={{ background: "var(--gradient-primary)" }}>
+        <CardContent
+          className="p-6 text-primary-foreground"
+          style={{ background: "var(--gradient-primary)" }}
+        >
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div>
               <p className="text-sm text-primary-foreground/70">Welcome back</p>
@@ -49,7 +57,9 @@ function TenantDashboard() {
               </div>
             </div>
             <div className="rounded-xl bg-white/10 p-4 backdrop-blur">
-              <p className="text-xs uppercase tracking-wider text-primary-foreground/70">Next rent due</p>
+              <p className="text-xs uppercase tracking-wider text-primary-foreground/70">
+                Next rent due
+              </p>
               <p className="mt-1 text-2xl font-bold">${dashboard.balance.toLocaleString()}</p>
               <p className="text-xs text-primary-foreground/70">{dashboard.dueDate}</p>
               <Button asChild size="sm" className="mt-3 bg-white text-primary hover:bg-white/90">
@@ -62,17 +72,31 @@ function TenantDashboard() {
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <ShortcutCard to="/tenant/pay" icon={CreditCard} label="Pay Rent" desc="Quick & secure" />
-        <ShortcutCard to="/tenant/maintenance" icon={Wrench} label="Submit Request" desc="Need a fix?" />
+        <ShortcutCard
+          to="/tenant/maintenance"
+          icon={Wrench}
+          label="Submit Request"
+          desc="Need a fix?"
+        />
         <ShortcutCard to="/tenant/documents" icon={FileText} label="Documents" desc="Your files" />
-        <ShortcutCard to="/tenant/notifications" icon={CalendarClock} label="Notices" desc="See latest" />
+        <ShortcutCard
+          to="/tenant/notifications"
+          icon={CalendarClock}
+          label="Notices"
+          desc="See latest"
+        />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle className="text-base">Recent payments</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">Recent payments</CardTitle>
+          </CardHeader>
           <CardContent>
             {payments.length === 0 ? (
-              <p className="py-6 text-center text-sm text-muted-foreground">No payment history yet</p>
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                No payment history yet
+              </p>
             ) : (
               <div className="divide-y divide-border">
                 {payments.slice(0, 5).map((h: any) => (
@@ -81,7 +105,9 @@ function TenantDashboard() {
                       <p className="text-sm font-medium">${h.amount.toLocaleString()}</p>
                       <p className="text-xs text-muted-foreground">{h.date}</p>
                     </div>
-                    <Badge className="bg-success/15 text-success hover:bg-success/15">{h.status}</Badge>
+                    <Badge className="bg-success/15 text-success hover:bg-success/15">
+                      {h.status}
+                    </Badge>
                   </div>
                 ))}
               </div>
@@ -89,7 +115,9 @@ function TenantDashboard() {
           </CardContent>
         </Card>
         <Card>
-          <CardHeader><CardTitle className="text-base">My maintenance requests</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle className="text-base">My maintenance requests</CardTitle>
+          </CardHeader>
           <CardContent>
             {requests.length === 0 ? (
               <p className="py-6 text-center text-sm text-muted-foreground">No requests yet</p>
@@ -101,8 +129,10 @@ function TenantDashboard() {
                       <p className="text-sm font-medium">{r.title}</p>
                       <p className="text-xs text-muted-foreground">{r.date}</p>
                     </div>
-                    <Badge variant={r.status === "Resolved" ? "secondary" : "outline"}
-                      className={r.status === "Open" ? "border-warning/50 text-warning" : ""}>
+                    <Badge
+                      variant={r.status === "Resolved" ? "secondary" : "outline"}
+                      className={r.status === "Open" ? "border-warning/50 text-warning" : ""}
+                    >
                       {r.status}
                     </Badge>
                   </div>

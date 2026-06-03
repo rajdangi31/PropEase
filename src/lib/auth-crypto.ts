@@ -33,17 +33,20 @@ async function getJwtSecret(): Promise<string> {
       const eventStorage = (globalThis as any)[storageKey];
       const event = eventStorage?.getStore()?.h3Event;
       if (event) {
-        env = event.context?.cloudflare?.env || 
-              event.node?.req?.runtime?.cloudflare?.env ||
-              event.node?.req?.__cloudflare_env || 
-              {};
+        env =
+          event.context?.cloudflare?.env ||
+          event.node?.req?.runtime?.cloudflare?.env ||
+          event.node?.req?.__cloudflare_env ||
+          {};
       }
     } catch (error) {
       // Ignore error if outside request lifecycle
     }
   }
 
-  const secret = env.JWT_SECRET || (typeof process !== "undefined" ? process.env.JWT_SECRET : (globalThis as any)?.JWT_SECRET);
+  const secret =
+    env.JWT_SECRET ||
+    (typeof process !== "undefined" ? process.env.JWT_SECRET : (globalThis as any)?.JWT_SECRET);
   if (!secret) {
     throw new Error("JWT_SECRET is not configured in the environment.");
   }
@@ -55,7 +58,9 @@ async function getJwtSecret(): Promise<string> {
  */
 function generateSalt(): string {
   const salt = crypto.getRandomValues(new Uint8Array(SALT_LENGTH));
-  return Array.from(salt).map((b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(salt)
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 /**
@@ -63,17 +68,17 @@ function generateSalt(): string {
  */
 export async function hashPassword(password: string, providedSalt?: string): Promise<string> {
   const saltHex = providedSalt || generateSalt();
-  
+
   // Convert hex salt back to Uint8Array
-  const saltArray = new Uint8Array(saltHex.match(/.{1,2}/g)!.map(byte => parseInt(byte, 16)));
-  
+  const saltArray = new Uint8Array(saltHex.match(/.{1,2}/g)!.map((byte) => parseInt(byte, 16)));
+
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
     enc.encode(password),
     { name: "PBKDF2" },
     false,
-    ["deriveBits"]
+    ["deriveBits"],
   );
 
   const hashBuffer = await crypto.subtle.deriveBits(
@@ -84,7 +89,7 @@ export async function hashPassword(password: string, providedSalt?: string): Pro
       hash: "SHA-256",
     },
     keyMaterial,
-    256
+    256,
   );
 
   const hashHex = Array.from(new Uint8Array(hashBuffer))
@@ -103,7 +108,7 @@ export async function verifyPassword(password: string, storedHash: string): Prom
   if (parts.length !== 5 || parts[1] !== "pbkdf2-sha256") {
     return false;
   }
-  
+
   const salt = parts[3];
   const reHashed = await hashPassword(password, salt);
   return reHashed === storedHash;
@@ -119,10 +124,7 @@ function base64urlEncode(buf: ArrayBuffer | Uint8Array | string): string {
   } else {
     str = String.fromCharCode(...new Uint8Array(buf));
   }
-  return btoa(str)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 async function getJwtKey(): Promise<CryptoKey> {
@@ -133,7 +135,7 @@ async function getJwtKey(): Promise<CryptoKey> {
     enc.encode(secret),
     { name: "HMAC", hash: "SHA-256" },
     false,
-    ["sign", "verify"]
+    ["sign", "verify"],
   );
 }
 
@@ -147,10 +149,13 @@ export type SessionPayload = {
 /**
  * Signs a session payload into a JWT
  */
-export async function signSession(payload: Omit<SessionPayload, "exp">, expiresInDays = 7): Promise<string> {
+export async function signSession(
+  payload: Omit<SessionPayload, "exp">,
+  expiresInDays = 7,
+): Promise<string> {
   const header = { alg: "HS256", typ: "JWT" };
-  
-  const exp = Math.floor(Date.now() / 1000) + (expiresInDays * 24 * 60 * 60);
+
+  const exp = Math.floor(Date.now() / 1000) + expiresInDays * 24 * 60 * 60;
   const fullPayload: SessionPayload = { ...payload, exp };
 
   const enc = new TextEncoder();
@@ -178,7 +183,7 @@ export async function verifySession(token: string): Promise<SessionPayload | nul
 
     const key = await getJwtKey();
     const enc = new TextEncoder();
-    
+
     // Decode Base64URL signature back to Uint8Array
     const sigStr = atob(signature.replace(/-/g, "+").replace(/_/g, "/"));
     const sigBytes = new Uint8Array(sigStr.length);

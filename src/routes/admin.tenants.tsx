@@ -1,10 +1,27 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import {
-  Mail, Plus, Search, Users, Copy, Check, FileText, Download, X,
-  Loader2, CheckCircle, AlertCircle, HelpCircle, RefreshCw, Ban
+  Mail,
+  Plus,
+  Search,
+  Users,
+  Copy,
+  Check,
+  FileText,
+  Download,
+  X,
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  HelpCircle,
+  RefreshCw,
+  Ban,
 } from "lucide-react";
-import { getTenantDocumentsFn, updateDocumentStatusFn, downloadDocumentFn } from "@/lib/document-server";
+import {
+  getTenantDocumentsFn,
+  updateDocumentStatusFn,
+  downloadDocumentFn,
+} from "@/lib/document-server";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,17 +29,34 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription, DialogFooter
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { getMyTenantsFn, renewLeaseFn, terminateLeaseFn } from "@/lib/data-server";
-import { getMyPropertiesFn, getUnitsFn, createInviteFn } from "@/lib/property-server";
+import { getMyPropertiesFn } from "@/lib/property-server";
+import { InviteTenantModal } from "@/components/admin/InviteTenantModal";
+import type { TenantRow } from "@/db/queries";
 
 export const Route = createFileRoute("/admin/tenants")({
   loader: async () => {
@@ -33,197 +67,36 @@ export const Route = createFileRoute("/admin/tenants")({
   component: TenantsPage,
 });
 
-function InviteModal({ properties }: { properties: any[] }) {
-  const [open, setOpen] = useState(false);
-  const [propertyId, setPropertyId] = useState("");
-  const [unitId, setUnitId] = useState("");
-  const [email, setEmail] = useState("");
-  const [rentAmount, setRentAmount] = useState("");
-  const [leaseStart, setLeaseStart] = useState("");
-  const [leaseEnd, setLeaseEnd] = useState("");
-  
-  const [units, setUnits] = useState<any[]>([]);
-  const [isLoadingUnits, setIsLoadingUnits] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [inviteLink, setInviteLink] = useState("");
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    if (propertyId) {
-      setIsLoadingUnits(true);
-      setUnitId("");
-      getUnitsFn({ data: { propertyId } })
-        .then(setUnits)
-        .catch(console.error)
-        .finally(() => setIsLoadingUnits(false));
-    } else {
-      setUnits([]);
-    }
-  }, [propertyId]);
-
-  useEffect(() => {
-    if (unitId && units.length > 0) {
-      const selectedUnit = units.find((u) => u.id === unitId);
-      if (selectedUnit) {
-        setRentAmount(selectedUnit.rent.toString());
-      }
-    }
-  }, [unitId, units]);
-
-  const handleGenerate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsGenerating(true);
-    try {
-      const invite = await createInviteFn({
-        data: {
-          propertyId,
-          unitId,
-          email: email || undefined,
-          rentAmount: Number(rentAmount),
-          leaseStart,
-          leaseEnd,
-        }
-      });
-      const url = new URL(window.location.href);
-      setInviteLink(`${url.protocol}//${url.host}/auth?invite=${invite.id}`);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(inviteLink);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (!newOpen) {
-      setTimeout(() => {
-        setPropertyId("");
-        setUnitId("");
-        setEmail("");
-        setRentAmount("");
-        setLeaseStart("");
-        setLeaseEnd("");
-        setInviteLink("");
-      }, 200);
-    }
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button><Plus className="mr-1.5 h-4 w-4" /> Invite Tenant</Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Invite New Tenant</DialogTitle>
-          <DialogDescription>
-            Generate a secure sign-up link. The tenant will automatically be assigned to the selected unit and a lease will be created using these terms.
-          </DialogDescription>
-        </DialogHeader>
-        
-        {inviteLink ? (
-          <div className="flex flex-col space-y-4 pt-4">
-            <div className="rounded-md bg-accent/10 p-4 border border-accent/20">
-              <p className="text-sm text-accent-foreground font-medium mb-2">Invitation Link Generated!</p>
-              <div className="flex items-center space-x-2">
-                <Input value={inviteLink} readOnly className="font-mono text-xs text-muted-foreground" />
-                <Button size="icon" variant="secondary" onClick={handleCopy}>
-                  {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                </Button>
-              </div>
-            </div>
-            <Button onClick={() => handleOpenChange(false)} className="w-full">Done</Button>
-          </div>
-        ) : (
-          <form onSubmit={handleGenerate} className="space-y-4 pt-4">
-            <div className="space-y-2">
-              <Label>Property</Label>
-              <Select value={propertyId} onValueChange={setPropertyId} required>
-                <SelectTrigger><SelectValue placeholder="Select property..." /></SelectTrigger>
-                <SelectContent>
-                  {properties.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label>Unit</Label>
-              <Select value={unitId} onValueChange={setUnitId} required disabled={!propertyId || isLoadingUnits}>
-                <SelectTrigger><SelectValue placeholder={isLoadingUnits ? "Loading..." : "Select vacant unit..."} /></SelectTrigger>
-                <SelectContent>
-                  {units.filter(u => u.status === "vacant").map((u) => (
-                    <SelectItem key={u.id} value={u.id}>Unit {u.number} (${u.rent.toLocaleString()})</SelectItem>
-                  ))}
-                  {units.filter(u => u.status === "vacant").length === 0 && (
-                    <SelectItem value="none" disabled>No vacant units</SelectItem>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tenant Email (Optional)</Label>
-              <Input type="email" placeholder="tenant@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Monthly Rent ($)</Label>
-                <Input type="number" placeholder="1500" value={rentAmount} onChange={(e) => setRentAmount(e.target.value)} required />
-              </div>
-              <div className="space-y-2 text-transparent select-none"><Label>_</Label><Input disabled className="border-transparent bg-transparent" /></div>
-              <div className="space-y-2">
-                <Label>Lease Start</Label>
-                <Input type="date" value={leaseStart} onChange={(e) => setLeaseStart(e.target.value)} required />
-              </div>
-              <div className="space-y-2">
-                <Label>Lease End</Label>
-                <Input type="date" value={leaseEnd} onChange={(e) => setLeaseEnd(e.target.value)} required />
-              </div>
-            </div>
-
-            <div className="pt-4 flex justify-end space-x-2">
-              <Button type="button" variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
-              <Button type="submit" disabled={isGenerating}>{isGenerating ? "Generating..." : "Generate Link"}</Button>
-            </div>
-          </form>
-        )}
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function TenantsPage() {
   const { tenants, properties } = Route.useLoaderData();
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [selectedTenantForDocs, setSelectedTenantForDocs] = useState<any | null>(null);
+  const [selectedTenantForDocs, setSelectedTenantForDocs] = useState<TenantRow | null>(null);
   const [tenantDocs, setTenantDocs] = useState<any[]>([]);
   const [isLoadingDocs, setIsLoadingDocs] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Lease Lifecycle states
-  const [renewingLease, setRenewingLease] = useState<{ leaseId: string; tenantName: string; currentRent: number } | null>(null);
-  const [terminatingLease, setTerminatingLease] = useState<{ leaseId: string; tenantName: string } | null>(null);
+  const [renewingLease, setRenewingLease] = useState<{
+    leaseId: string;
+    tenantName: string;
+    currentRent: number;
+  } | null>(null);
+  const [terminatingLease, setTerminatingLease] = useState<{
+    leaseId: string;
+    tenantName: string;
+  } | null>(null);
   const [newEndDate, setNewEndDate] = useState("");
   const [newRent, setNewRent] = useState("");
   const [isRenewing, setIsRenewing] = useState(false);
   const [isTerminating, setIsTerminating] = useState(false);
 
   const filtered = tenants.filter((t) =>
-    [t.name, t.email, t.unit].some((v) => v.toLowerCase().includes(q.toLowerCase()))
+    [t.name, t.email, t.unit].some((v) => v.toLowerCase().includes(q.toLowerCase())),
   );
 
-  const handleViewDocuments = async (tenant: any) => {
+  const handleViewDocuments = async (tenant: TenantRow) => {
     setSelectedTenantForDocs(tenant);
     setIsLoadingDocs(true);
     try {
@@ -318,11 +191,13 @@ function TenantsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight font-display">Tenants</h2>
-          <p className="text-sm text-muted-foreground font-medium">{tenants.length} active across your portfolio</p>
+          <p className="text-sm text-muted-foreground font-medium">
+            {tenants.length} active across your portfolio
+          </p>
         </div>
-        <InviteModal properties={properties} />
+        <InviteTenantModal properties={properties} />
       </div>
-      
+
       {tenants.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-24 text-center border border-border/50 rounded-xl bg-card/10">
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-accent/10 text-accent mb-6">
@@ -339,7 +214,12 @@ function TenantsPage() {
             <div className="flex flex-col gap-3 border-b border-border/50 p-4 sm:flex-row sm:items-center">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search tenants..." className="pl-9 h-9" />
+                <Input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search tenants..."
+                  className="pl-9 h-9"
+                />
               </div>
             </div>
             <Table>
@@ -360,20 +240,36 @@ function TenantsPage() {
                       <div className="flex items-center gap-3">
                         <Avatar className="h-9 w-9 border border-border/40">
                           <AvatarFallback className="bg-accent/10 text-xs font-bold text-accent">
-                            {t.name.split(" ").map((n) => n[0]).join("")}
+                            {t.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")}
                           </AvatarFallback>
                         </Avatar>
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold leading-tight text-foreground">{t.name}</p>
-                          <p className="truncate text-xs text-muted-foreground font-medium mt-0.5">{t.email}</p>
+                          <p className="text-sm font-semibold leading-tight text-foreground">
+                            {t.name}
+                          </p>
+                          <p className="truncate text-xs text-muted-foreground font-medium mt-0.5">
+                            {t.email}
+                          </p>
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="hidden text-sm font-medium md:table-cell">{t.unit}</TableCell>
-                    <TableCell className="hidden text-sm text-muted-foreground lg:table-cell font-medium">{t.leaseEnd}</TableCell>
-                    <TableCell className="hidden text-sm lg:table-cell font-semibold">${t.rent.toLocaleString()}</TableCell>
+                    <TableCell className="hidden text-sm font-medium md:table-cell">
+                      {t.unit}
+                    </TableCell>
+                    <TableCell className="hidden text-sm text-muted-foreground lg:table-cell font-medium">
+                      {t.leaseEnd}
+                    </TableCell>
+                    <TableCell className="hidden text-sm lg:table-cell font-semibold">
+                      ${t.rent.toLocaleString()}
+                    </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="bg-success/15 border-success/30 text-success font-semibold text-[10px] uppercase rounded-full px-2.5 py-0.5">
+                      <Badge
+                        variant="outline"
+                        className="bg-success/15 border-success/30 text-success font-semibold text-[10px] uppercase rounded-full px-2.5 py-0.5"
+                      >
                         {t.status}
                       </Badge>
                     </TableCell>
@@ -395,7 +291,7 @@ function TenantsPage() {
                             setRenewingLease({
                               leaseId: t.leaseId,
                               tenantName: t.name,
-                              currentRent: t.rent
+                              currentRent: t.rent,
                             });
                             setNewRent(String(t.rent));
                           }}
@@ -407,10 +303,12 @@ function TenantsPage() {
                         <Button
                           size="icon"
                           variant="ghost"
-                          onClick={() => setTerminatingLease({
-                            leaseId: t.leaseId,
-                            tenantName: t.name
-                          })}
+                          onClick={() =>
+                            setTerminatingLease({
+                              leaseId: t.leaseId,
+                              tenantName: t.name,
+                            })
+                          }
                           className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                           title="Terminate Lease"
                         >
@@ -422,7 +320,10 @@ function TenantsPage() {
                 ))}
                 {filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-12 text-center text-sm text-muted-foreground font-medium">
+                    <TableCell
+                      colSpan={6}
+                      className="py-12 text-center text-sm text-muted-foreground font-medium"
+                    >
                       No tenants match your search
                     </TableCell>
                   </TableRow>
@@ -434,7 +335,10 @@ function TenantsPage() {
       )}
 
       {/* Landlord Documents Dialog */}
-      <Dialog open={!!selectedTenantForDocs} onOpenChange={(open) => !open && setSelectedTenantForDocs(null)}>
+      <Dialog
+        open={!!selectedTenantForDocs}
+        onOpenChange={(open) => !open && setSelectedTenantForDocs(null)}
+      >
         <DialogContent className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>Documents for {selectedTenantForDocs?.name}</DialogTitle>
@@ -493,7 +397,10 @@ function TenantsPage() {
                           {docTypeLabels[doc.type] || doc.type}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={`gap-1 font-medium capitalize text-[10px] py-0.5 px-2 rounded-full ${statusStyles[doc.status] || ""}`}>
+                          <Badge
+                            variant="outline"
+                            className={`gap-1 font-medium capitalize text-[10px] py-0.5 px-2 rounded-full ${statusStyles[doc.status] || ""}`}
+                          >
                             {doc.status === "approved" ? (
                               <CheckCircle className="h-2.5 w-2.5" />
                             ) : doc.status === "rejected" ? (
@@ -563,7 +470,8 @@ function TenantsPage() {
             <DialogHeader>
               <DialogTitle>Renew Lease for {renewingLease?.tenantName}</DialogTitle>
               <DialogDescription>
-                Set a new end date and optional rent adjustment. The new lease starts the day after the current lease ends.
+                Set a new end date and optional rent adjustment. The new lease starts the day after
+                the current lease ends.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 pt-4">
@@ -577,7 +485,9 @@ function TenantsPage() {
                   placeholder="e.g. 1600"
                   required
                 />
-                <p className="text-[11px] text-muted-foreground">Current Rent: ${renewingLease?.currentRent}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  Current Rent: ${renewingLease?.currentRent}
+                </p>
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="newEndDate">New Lease End Date</Label>
@@ -591,7 +501,12 @@ function TenantsPage() {
               </div>
             </div>
             <DialogFooter className="mt-6">
-              <Button type="button" variant="outline" onClick={() => setRenewingLease(null)} disabled={isRenewing}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRenewingLease(null)}
+                disabled={isRenewing}
+              >
                 Cancel
               </Button>
               <Button type="submit" disabled={isRenewing || !newEndDate || !newRent}>
@@ -614,17 +529,24 @@ function TenantsPage() {
           <DialogHeader>
             <DialogTitle>Terminate Lease for {terminatingLease?.tenantName}</DialogTitle>
             <DialogDescription>
-              Are you sure you want to terminate this lease? This action will set the unit status back to <strong>vacant</strong> immediately.
+              Are you sure you want to terminate this lease? This action will set the unit status
+              back to <strong>vacant</strong> immediately.
             </DialogDescription>
           </DialogHeader>
           <div className="rounded-lg bg-destructive/10 p-3.5 border border-destructive/20 text-xs text-destructive flex gap-2 mt-2">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <p className="leading-normal font-semibold">
-              Warning: This is irreversible. Current billing schedules for this tenancy will stop and the tenant profile will be unlinked from the active unit.
+              Warning: This is irreversible. Current billing schedules for this tenancy will stop
+              and the tenant profile will be unlinked from the active unit.
             </p>
           </div>
           <DialogFooter className="mt-6">
-            <Button type="button" variant="outline" onClick={() => setTerminatingLease(null)} disabled={isTerminating}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setTerminatingLease(null)}
+              disabled={isTerminating}
+            >
               Cancel
             </Button>
             <Button

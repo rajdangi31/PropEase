@@ -50,25 +50,25 @@ export const getRentPredictionFn = createServerFn({ method: "GET" })
 
     // 3. Get Dynamic Locality Pricing
     const localityAvgPricePerSqft = await getDynamicLocalityPricing(
-      data.city || "", 
-      data.locality || ""
+      data.city || "",
+      data.locality || "",
     );
 
     // 4. Get Comparables
     const comparables = await getComparableProperties(
       data.locality || "",
       data.beds || 0,
-      data.sqft || 0
+      data.sqft || 0,
     );
 
     // Filter out the current unit itself from comparables just in case
-    const filteredComparables = comparables.filter(c => c.id !== unitId);
+    const filteredComparables = comparables.filter((c: any) => c.id !== unitId);
 
     // 5. Run Pricing Engine
     const prediction = runPricingEngine(
       {
         sqft: data.sqft || 0,
-        furnishedStatus: data.furnishedStatus as any || "unfurnished",
+        furnishedStatus: (data.furnishedStatus as any) || "unfurnished",
         parking: data.parking || false,
         balconyCount: data.balconyCount || 0,
         propertyAge: data.propertyAge || 0,
@@ -76,7 +76,7 @@ export const getRentPredictionFn = createServerFn({ method: "GET" })
         locationScore,
         localityAvgPricePerSqft,
       },
-      filteredComparables.length
+      filteredComparables.length,
     );
 
     // 6. Price Fairness (Current vs Recommended)

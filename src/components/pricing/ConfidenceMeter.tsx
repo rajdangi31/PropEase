@@ -14,9 +14,9 @@ export function ConfidenceMeter({ score }: ConfidenceMeterProps) {
         <span className={color.replace("bg-", "text-")}>{score}%</span>
       </div>
       <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-        <div 
-          className={`h-full ${color} transition-all duration-1000 ease-out`} 
-          style={{ width: `${score}%` }} 
+        <div
+          className={`h-full ${color} transition-all duration-1000 ease-out`}
+          style={{ width: `${score}%` }}
         />
       </div>
     </div>

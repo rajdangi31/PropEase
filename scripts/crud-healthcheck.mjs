@@ -1,7 +1,7 @@
 /**
  * PropEase CRUD Health Check — Properties & Units
  * Tests: Create property → Create units → List properties → List units → Cleanup
- * 
+ *
  * Run with: node scripts/crud-healthcheck.mjs
  */
 
@@ -28,9 +28,12 @@ try {
 // ──────────────────────────────────────────────────
 console.log("\n📋 Step 2: Creating test landlord...");
 const landlordId = "crud-test-landlord-" + Date.now();
-await db.prepare(
-  `INSERT INTO profiles (id, email, password_hash, first_name, last_name, role) VALUES (?, ?, ?, ?, ?, ?)`
-).bind(landlordId, `crud-${Date.now()}@test.app`, "not-a-real-hash", "CRUD", "Tester", "landlord").run();
+await db
+  .prepare(
+    `INSERT INTO profiles (id, email, password_hash, first_name, last_name, role) VALUES (?, ?, ?, ?, ?, ?)`,
+  )
+  .bind(landlordId, `crud-${Date.now()}@test.app`, "not-a-real-hash", "CRUD", "Tester", "landlord")
+  .run();
 console.log(`   ✅ Landlord created (id: ${landlordId.substring(0, 20)}...)`);
 
 // ──────────────────────────────────────────────────
@@ -38,13 +41,12 @@ console.log(`   ✅ Landlord created (id: ${landlordId.substring(0, 20)}...)`);
 // ──────────────────────────────────────────────────
 console.log("\n📋 Step 3: Creating property...");
 const propertyId = crypto.randomUUID();
-await db.prepare(
-  `INSERT INTO properties (id, landlord_id, name, address) VALUES (?, ?, ?, ?)`
-).bind(propertyId, landlordId, "Test Building", "123 Test St, New York, NY").run();
+await db
+  .prepare(`INSERT INTO properties (id, landlord_id, name, address) VALUES (?, ?, ?, ?)`)
+  .bind(propertyId, landlordId, "Test Building", "123 Test St, New York, NY")
+  .run();
 
-const property = await db.prepare(
-  "SELECT * FROM properties WHERE id = ?"
-).bind(propertyId).first();
+const property = await db.prepare("SELECT * FROM properties WHERE id = ?").bind(propertyId).first();
 
 if (property && property.name === "Test Building") {
   console.log(`   ✅ Property created: "${property.name}" at ${property.address}`);
@@ -67,19 +69,25 @@ const unitData = [
 for (const u of unitData) {
   const uid = crypto.randomUUID();
   unitIds.push(uid);
-  await db.prepare(
-    `INSERT INTO units (id, property_id, unit_number, current_market_rent, sqft, beds, baths, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).bind(uid, propertyId, u.number, u.rent, u.sqft, u.beds, u.baths, u.status).run();
+  await db
+    .prepare(
+      `INSERT INTO units (id, property_id, unit_number, current_market_rent, sqft, beds, baths, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    )
+    .bind(uid, propertyId, u.number, u.rent, u.sqft, u.beds, u.baths, u.status)
+    .run();
 }
 
-const unitRows = await db.prepare(
-  "SELECT * FROM units WHERE property_id = ?"
-).bind(propertyId).all();
+const unitRows = await db
+  .prepare("SELECT * FROM units WHERE property_id = ?")
+  .bind(propertyId)
+  .all();
 
 if (unitRows.results.length === 3) {
   console.log(`   ✅ 3 units created:`);
   for (const u of unitRows.results) {
-    console.log(`      Unit ${u.unit_number}: $${(u.current_market_rent / 100).toFixed(0)}/mo, ${u.sqft}sqft, ${u.beds}bd/${u.baths}ba, ${u.status}`);
+    console.log(
+      `      Unit ${u.unit_number}: $${(u.current_market_rent / 100).toFixed(0)}/mo, ${u.sqft}sqft, ${u.beds}bd/${u.baths}ba, ${u.status}`,
+    );
   }
 } else {
   console.log(`   ❌ Expected 3 units, got ${unitRows.results.length}`);
@@ -90,11 +98,15 @@ if (unitRows.results.length === 3) {
 // STEP 5: Query properties by landlord
 // ──────────────────────────────────────────────────
 console.log("\n📋 Step 5: Querying properties by landlord...");
-const landlordProperties = await db.prepare(
-  "SELECT * FROM properties WHERE landlord_id = ?"
-).bind(landlordId).all();
+const landlordProperties = await db
+  .prepare("SELECT * FROM properties WHERE landlord_id = ?")
+  .bind(landlordId)
+  .all();
 
-if (landlordProperties.results.length === 1 && landlordProperties.results[0].name === "Test Building") {
+if (
+  landlordProperties.results.length === 1 &&
+  landlordProperties.results[0].name === "Test Building"
+) {
   console.log("   ✅ Landlord property query returns correct results");
 } else {
   console.log("   ❌ Landlord property query failed");
@@ -105,7 +117,7 @@ if (landlordProperties.results.length === 1 && landlordProperties.results[0].nam
 // STEP 6: Test rent conversion (cents → dollars)
 // ──────────────────────────────────────────────────
 console.log("\n📋 Step 6: Verifying rent conversion (cents ↔ dollars)...");
-const unit101 = unitRows.results.find(u => u.unit_number === "101");
+const unit101 = unitRows.results.find((u) => u.unit_number === "101");
 const rentInCents = unit101.current_market_rent;
 const rentInDollars = rentInCents / 100;
 
@@ -122,10 +134,13 @@ if (rentInCents === 240000 && rentInDollars === 2400) {
 console.log("\n📋 Step 7: Verifying foreign key relationships...");
 try {
   // Attempt to create a unit with a non-existent property ID
-  await db.prepare(
-    `INSERT INTO units (id, property_id, unit_number, current_market_rent, status) VALUES (?, ?, ?, ?, ?)`
-  ).bind(crypto.randomUUID(), "non-existent-property", "999", 100000, "vacant").run();
-  
+  await db
+    .prepare(
+      `INSERT INTO units (id, property_id, unit_number, current_market_rent, status) VALUES (?, ?, ?, ?, ?)`,
+    )
+    .bind(crypto.randomUUID(), "non-existent-property", "999", 100000, "vacant")
+    .run();
+
   // If we get here, FK constraint wasn't enforced (SQLite FKs need PRAGMA)
   console.log("   ⚠️  Foreign key constraint not enforced (common in D1 local — not a bug)");
   // Clean up
@@ -145,7 +160,10 @@ await db.prepare("DELETE FROM properties WHERE id = ?").bind(propertyId).run();
 await db.prepare("DELETE FROM profiles WHERE id = ?").bind(landlordId).run();
 
 // Verify cleanup
-const remaining = await db.prepare("SELECT COUNT(*) as c FROM units WHERE property_id = ?").bind(propertyId).first();
+const remaining = await db
+  .prepare("SELECT COUNT(*) as c FROM units WHERE property_id = ?")
+  .bind(propertyId)
+  .first();
 if (remaining.c === 0) {
   console.log("   ✅ All test data cleaned up");
 } else {

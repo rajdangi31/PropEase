@@ -1,18 +1,37 @@
 import { createFileRoute, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
 import {
-  Download, FileText, CheckCircle2, XCircle, Clock,
-  Calendar, Loader2, Search, Filter, ArrowUpRight, Check, X
+  Download,
+  FileText,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Calendar,
+  Loader2,
+  Search,
+  Filter,
+  ArrowUpRight,
+  Check,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { getDocumentsForLandlordFn, downloadDocumentFn, updateDocumentStatusFn } from "@/lib/document-server";
+import {
+  getDocumentsForLandlordFn,
+  downloadDocumentFn,
+  updateDocumentStatusFn,
+} from "@/lib/document-server";
 
 export const Route = createFileRoute("/admin/documents")({
   loader: async () => {
@@ -46,7 +65,9 @@ function AdminDocuments() {
   const documents = Route.useLoaderData();
   const router = useRouter();
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<"all" | "pending_review" | "approved" | "rejected">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "pending_review" | "approved" | "rejected"
+  >("all");
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [actioningId, setActioningId] = useState<string | null>(null);
 
@@ -110,7 +131,9 @@ function AdminDocuments() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-semibold tracking-tight font-display">Document Reviews</h2>
-          <p className="text-sm text-muted-foreground font-medium">Verify tenant-uploaded documents, lease agreements, and verification proofs</p>
+          <p className="text-sm text-muted-foreground font-medium">
+            Verify tenant-uploaded documents, lease agreements, and verification proofs
+          </p>
         </div>
       </div>
 
@@ -119,8 +142,12 @@ function AdminDocuments() {
         <Card className="overflow-hidden border-0 shadow-soft">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Pending Review</p>
-              <p className="mt-1.5 text-2xl font-bold tracking-tight">{countByStatus("pending_review")}</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Pending Review
+              </p>
+              <p className="mt-1.5 text-2xl font-bold tracking-tight">
+                {countByStatus("pending_review")}
+              </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-warning/15 text-warning">
               <Clock className="h-5 w-5" />
@@ -130,8 +157,12 @@ function AdminDocuments() {
         <Card className="overflow-hidden border-0 shadow-soft">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Approved Files</p>
-              <p className="mt-1.5 text-2xl font-bold tracking-tight">{countByStatus("approved")}</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Approved Files
+              </p>
+              <p className="mt-1.5 text-2xl font-bold tracking-tight">
+                {countByStatus("approved")}
+              </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success/15 text-success">
               <CheckCircle2 className="h-5 w-5" />
@@ -141,8 +172,12 @@ function AdminDocuments() {
         <Card className="overflow-hidden border-0 shadow-soft">
           <CardContent className="p-5 flex items-center justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Rejected Files</p>
-              <p className="mt-1.5 text-2xl font-bold tracking-tight">{countByStatus("rejected")}</p>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+                Rejected Files
+              </p>
+              <p className="mt-1.5 text-2xl font-bold tracking-tight">
+                {countByStatus("rejected")}
+              </p>
             </div>
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-destructive/15 text-destructive">
               <XCircle className="h-5 w-5" />
@@ -167,7 +202,10 @@ function AdminDocuments() {
                   }`}
                 >
                   {tab.label}
-                  <Badge variant="secondary" className="px-1.5 py-0 text-[10px] bg-muted/60 text-muted-foreground border-0">
+                  <Badge
+                    variant="secondary"
+                    className="px-1.5 py-0 text-[10px] bg-muted/60 text-muted-foreground border-0"
+                  >
                     {tab.count}
                   </Badge>
                 </button>
@@ -191,7 +229,9 @@ function AdminDocuments() {
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-muted/60 text-muted-foreground/60 mb-4">
                 <FileText className="h-6 w-6" />
               </div>
-              <h3 className="text-base font-semibold tracking-tight">No matching documents found</h3>
+              <h3 className="text-base font-semibold tracking-tight">
+                No matching documents found
+              </h3>
               <p className="mt-1 max-w-xs text-xs text-muted-foreground">
                 Try clearing your search term or filtering by a different document review status.
               </p>
@@ -201,12 +241,24 @@ function AdminDocuments() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/5">
-                    <TableHead className="font-semibold text-xs uppercase tracking-wider">Document</TableHead>
-                    <TableHead className="font-semibold text-xs uppercase tracking-wider">Tenant</TableHead>
-                    <TableHead className="font-semibold text-xs uppercase tracking-wider">Property & Unit</TableHead>
-                    <TableHead className="font-semibold text-xs uppercase tracking-wider">Uploaded</TableHead>
-                    <TableHead className="font-semibold text-xs uppercase tracking-wider">Status</TableHead>
-                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">Actions</TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                      Document
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                      Tenant
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                      Property & Unit
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                      Uploaded
+                    </TableHead>
+                    <TableHead className="font-semibold text-xs uppercase tracking-wider">
+                      Status
+                    </TableHead>
+                    <TableHead className="text-right font-semibold text-xs uppercase tracking-wider">
+                      Actions
+                    </TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -218,7 +270,10 @@ function AdminDocuments() {
                             <FileText className="h-4.5 w-4.5" />
                           </div>
                           <div className="min-w-0">
-                            <p className="font-medium text-sm text-foreground leading-snug truncate" title={doc.name}>
+                            <p
+                              className="font-medium text-sm text-foreground leading-snug truncate"
+                              title={doc.name}
+                            >
                               {doc.name}
                             </p>
                             <p className="text-[11px] text-muted-foreground font-semibold uppercase tracking-wider mt-0.5">
@@ -233,7 +288,9 @@ function AdminDocuments() {
                       <TableCell className="py-3.5">
                         <div className="min-w-[150px]">
                           <p className="text-sm font-medium text-foreground">{doc.propertyName}</p>
-                          <p className="text-xs text-muted-foreground mt-0.5 font-medium">Unit {doc.unitNumber}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                            Unit {doc.unitNumber}
+                          </p>
                         </div>
                       </TableCell>
                       <TableCell className="py-3.5 text-muted-foreground text-sm">
@@ -243,7 +300,10 @@ function AdminDocuments() {
                         </span>
                       </TableCell>
                       <TableCell className="py-3.5">
-                        <Badge variant="outline" className={`gap-1 font-semibold text-[10px] uppercase py-0.5 px-2.5 rounded-full ${statusStyles[doc.status] || ""}`}>
+                        <Badge
+                          variant="outline"
+                          className={`gap-1 font-semibold text-[10px] uppercase py-0.5 px-2.5 rounded-full ${statusStyles[doc.status] || ""}`}
+                        >
                           {doc.status === "approved" ? (
                             <Check className="h-3 w-3" />
                           ) : doc.status === "rejected" ? (

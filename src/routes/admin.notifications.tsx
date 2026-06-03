@@ -92,7 +92,7 @@ function NotificationsPage() {
     }
   };
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   return (
     <div className="grid gap-6 lg:grid-cols-3">
@@ -109,7 +109,9 @@ function NotificationsPage() {
         <CardContent>
           <form onSubmit={handleSend} className="space-y-4">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Target Properties</Label>
+              <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">
+                Target Properties
+              </Label>
               <div className="flex flex-wrap gap-2">
                 <Button
                   type="button"
@@ -134,9 +136,14 @@ function NotificationsPage() {
                 ))}
               </div>
             </div>
-            
+
             <div className="space-y-1.5">
-              <Label htmlFor="subject" className="text-xs font-semibold text-foreground uppercase tracking-wider">Subject</Label>
+              <Label
+                htmlFor="subject"
+                className="text-xs font-semibold text-foreground uppercase tracking-wider"
+              >
+                Subject
+              </Label>
               <Input
                 id="subject"
                 value={subject}
@@ -145,9 +152,14 @@ function NotificationsPage() {
                 required
               />
             </div>
-            
+
             <div className="space-y-1.5">
-              <Label htmlFor="message" className="text-xs font-semibold text-foreground uppercase tracking-wider">Message</Label>
+              <Label
+                htmlFor="message"
+                className="text-xs font-semibold text-foreground uppercase tracking-wider"
+              >
+                Message
+              </Label>
               <Textarea
                 id="message"
                 value={message}
@@ -157,7 +169,7 @@ function NotificationsPage() {
                 required
               />
             </div>
-            
+
             <div className="flex justify-end gap-2 pt-2">
               <Button
                 type="submit"
@@ -186,9 +198,7 @@ function NotificationsPage() {
             <CardTitle className="flex items-center gap-2 text-base font-semibold">
               <Bell className="h-4.5 w-4.5 text-accent shrink-0" /> Alerts Feed
             </CardTitle>
-            <CardDescription className="text-xs">
-              Latest system notifications
-            </CardDescription>
+            <CardDescription className="text-xs">Latest system notifications</CardDescription>
           </div>
           {unreadCount > 0 && (
             <Button
@@ -212,7 +222,9 @@ function NotificationsPage() {
             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
               <Bell className="h-8 w-8 text-muted-foreground/30 mb-2" />
               <p className="text-sm font-medium">No alerts yet</p>
-              <p className="text-xs text-muted-foreground/75 mt-0.5">Tenant activities and payment updates will show up here.</p>
+              <p className="text-xs text-muted-foreground/75 mt-0.5">
+                Tenant activities and payment updates will show up here.
+              </p>
             </div>
           ) : (
             <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
@@ -228,9 +240,13 @@ function NotificationsPage() {
                   {!n.isRead && (
                     <span className="absolute top-3.5 left-2 h-1.5 w-1.5 rounded-full bg-accent" />
                   )}
-                  <div className={`flex items-start justify-between gap-4 ${!n.isRead ? "pl-2" : ""}`}>
+                  <div
+                    className={`flex items-start justify-between gap-4 ${!n.isRead ? "pl-2" : ""}`}
+                  >
                     <div className="min-w-0">
-                      <p className={`text-sm font-semibold leading-tight ${!n.isRead ? "text-foreground" : "text-muted-foreground"}`}>
+                      <p
+                        className={`text-sm font-semibold leading-tight ${!n.isRead ? "text-foreground" : "text-muted-foreground"}`}
+                      >
                         {n.title}
                       </p>
                       <p className="mt-1 text-xs leading-relaxed text-muted-foreground/90">

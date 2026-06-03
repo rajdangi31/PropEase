@@ -1,7 +1,18 @@
 import { Link, Outlet, useLocation, useRouter, useLoaderData } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Building2, Users, CreditCard, Wrench, Bell, Settings,
-  Search, LogOut, ChevronDown, Menu, X, FileText,
+  LayoutDashboard,
+  Building2,
+  Users,
+  CreditCard,
+  Wrench,
+  Bell,
+  Settings,
+  Search,
+  LogOut,
+  ChevronDown,
+  Menu,
+  X,
+  FileText,
 } from "lucide-react";
 import { useState } from "react";
 import { Logo } from "@/components/Logo";
@@ -10,8 +21,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { signOutFn } from "@/lib/auth-server";
@@ -58,7 +73,17 @@ type PropertyData = {
   occupied: number;
 };
 
-function AdminSidebar({ properties, activeProperty, user, onNavigate }: { properties: PropertyData[]; activeProperty: string; user: UserData; onNavigate?: () => void }) {
+function AdminSidebar({
+  properties,
+  activeProperty,
+  user,
+  onNavigate,
+}: {
+  properties: PropertyData[];
+  activeProperty: string;
+  user: UserData;
+  onNavigate?: () => void;
+}) {
   const location = useLocation();
   const router = useRouter();
 
@@ -119,9 +144,10 @@ function AdminSidebar({ properties, activeProperty, user, onNavigate }: { proper
             return true;
           })
           .map((item) => {
-            const active = item.to === "/admin"
-              ? location.pathname === "/admin"
-              : location.pathname.startsWith(item.to);
+            const active =
+              item.to === "/admin"
+                ? location.pathname === "/admin"
+                : location.pathname.startsWith(item.to);
             const Icon = item.icon;
             return (
               <Link
@@ -149,8 +175,12 @@ function AdminSidebar({ properties, activeProperty, user, onNavigate }: { proper
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-medium">{user.firstName} {user.lastName}</p>
-            <p className="truncate text-xs text-sidebar-foreground/60">{roleLabels[user.role] || user.role}</p>
+            <p className="truncate text-sm font-medium">
+              {user.firstName} {user.lastName}
+            </p>
+            <p className="truncate text-xs text-sidebar-foreground/60">
+              {roleLabels[user.role] || user.role}
+            </p>
           </div>
           <button
             onClick={handleSignOut}
@@ -169,7 +199,11 @@ export function AdminShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
   const path = router.state.location.pathname;
-  const { user, properties, notifications } = useLoaderData({ from: "/admin" }) as { user: UserData; properties: PropertyData[]; notifications: NotificationRow[] };
+  const { user, properties, notifications } = useLoaderData({ from: "/admin" }) as {
+    user: UserData;
+    properties: PropertyData[];
+    notifications: NotificationRow[];
+  };
   const activeProperty = properties.length > 0 ? properties[0].name : "No properties";
 
   const title = (() => {
@@ -190,7 +224,12 @@ export function AdminShell() {
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
           <aside className="absolute left-0 top-0 h-full w-72 bg-sidebar shadow-xl">
-            <AdminSidebar properties={properties} activeProperty={activeProperty} user={user} onNavigate={() => setMobileOpen(false)} />
+            <AdminSidebar
+              properties={properties}
+              activeProperty={activeProperty}
+              user={user}
+              onNavigate={() => setMobileOpen(false)}
+            />
           </aside>
         </div>
       )}

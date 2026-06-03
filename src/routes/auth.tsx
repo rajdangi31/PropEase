@@ -39,9 +39,27 @@ export const Route = createFileRoute("/auth")({
 });
 
 const roles = [
-  { id: "landlord", label: "Property Owner", desc: "Full access to all features", icon: Building2, to: "/admin" },
-  { id: "manager", label: "Manager", desc: "All except billing & settings", icon: ShieldCheck, to: "/admin" },
-  { id: "maintenance", label: "Maintenance Staff", desc: "Assigned requests only", icon: Wrench, to: "/admin/maintenance" },
+  {
+    id: "landlord",
+    label: "Property Owner",
+    desc: "Full access to all features",
+    icon: Building2,
+    to: "/admin",
+  },
+  {
+    id: "manager",
+    label: "Manager",
+    desc: "All except billing & settings",
+    icon: ShieldCheck,
+    to: "/admin",
+  },
+  {
+    id: "maintenance",
+    label: "Maintenance Staff",
+    desc: "Assigned requests only",
+    icon: Wrench,
+    to: "/admin/maintenance",
+  },
   { id: "tenant", label: "Tenant", desc: "Pay rent, submit requests", icon: User, to: "/tenant" },
 ] as const;
 
@@ -52,11 +70,15 @@ function AuthPage() {
   const inviteToken = search.invite;
 
   // If invited, force role to tenant (or maintenance if inviteType is maintenance), otherwise remove tenant from roles array
-  const displayRoles = inviteDetails 
-    ? (inviteDetails.invite.inviteType === "maintenance" ? roles.filter(r => r.id === "maintenance") : roles.filter(r => r.id === "tenant")) 
-    : roles.filter(r => r.id !== "tenant");
-  const defaultRole = inviteDetails 
-    ? (inviteDetails.invite.inviteType === "maintenance" ? "maintenance" : "tenant") 
+  const displayRoles = inviteDetails
+    ? inviteDetails.invite.inviteType === "maintenance"
+      ? roles.filter((r) => r.id === "maintenance")
+      : roles.filter((r) => r.id === "tenant")
+    : roles.filter((r) => r.id !== "tenant");
+  const defaultRole = inviteDetails
+    ? inviteDetails.invite.inviteType === "maintenance"
+      ? "maintenance"
+      : "tenant"
     : "landlord";
 
   const [role, setRole] = useState<(typeof roles)[number]["id"]>(defaultRole);
@@ -67,7 +89,7 @@ function AuthPage() {
   const [error, setError] = useState(search.error || inviteError || "");
   const [successMessage, setSuccessMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const [isVerifying, setIsVerifying] = useState(false);
   const [otp, setOtp] = useState("");
   const [isResettingPassword, setIsResettingPassword] = useState(false);
@@ -75,9 +97,7 @@ function AuthPage() {
   const [resetCode, setResetCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
-  const defaultTab = inviteDetails
-    ? (inviteDetails.emailExists ? "signin" : "signup")
-    : "signin";
+  const defaultTab = inviteDetails ? (inviteDetails.emailExists ? "signin" : "signup") : "signin";
   const [activeTab, setActiveTab] = useState(defaultTab);
 
   useEffect(() => {
@@ -130,7 +150,9 @@ function AuthPage() {
 
     setIsLoading(true);
     try {
-      await requestSignUpOtpFn({ data: { email, password, firstName, lastName, role, inviteToken } });
+      await requestSignUpOtpFn({
+        data: { email, password, firstName, lastName, role, inviteToken },
+      });
       setIsVerifying(true);
     } catch (err: any) {
       setError(err.message || "Error creating account");
@@ -196,7 +218,10 @@ function AuthPage() {
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Brand panel */}
-      <div className="relative hidden flex-col justify-between p-10 text-primary-foreground lg:flex" style={{ background: "var(--gradient-hero)" }}>
+      <div
+        className="relative hidden flex-col justify-between p-10 text-primary-foreground lg:flex"
+        style={{ background: "var(--gradient-hero)" }}
+      >
         <Logo className="text-primary-foreground" />
         <div>
           <h2 className="text-3xl font-bold leading-tight">Run your portfolio with ease.</h2>
@@ -223,7 +248,9 @@ function AuthPage() {
       {/* Form panel */}
       <div className="flex flex-col bg-background">
         <header className="flex items-center justify-between p-6">
-          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">← Back</Link>
+          <Link to="/" className="text-sm text-muted-foreground hover:text-foreground">
+            ← Back
+          </Link>
           <ThemeToggle />
         </header>
         <div className="mx-auto flex w-full max-w-md flex-1 flex-col justify-center px-6 pb-12">
@@ -232,7 +259,8 @@ function AuthPage() {
               <div>
                 <h1 className="text-2xl font-bold tracking-tight">Verify your email</h1>
                 <p className="mt-1.5 text-sm text-muted-foreground">
-                  We've sent a 6-digit verification code to <strong className="text-foreground">{email}</strong>.
+                  We've sent a 6-digit verification code to{" "}
+                  <strong className="text-foreground">{email}</strong>.
                 </p>
                 <p className="mt-2 rounded-md border border-amber-500/20 bg-amber-500/5 p-3 text-xs text-amber-600 dark:text-amber-500 font-medium">
                   Check your terminal console where the npm dev server is running to find the code.
@@ -240,14 +268,16 @@ function AuthPage() {
               </div>
 
               <form onSubmit={handleVerifyOtp} className="space-y-4">
-                {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+                {error && (
+                  <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+                    {error}
+                  </div>
+                )}
                 <div className="space-y-2 flex flex-col items-center">
-                  <Label htmlFor="otp" className="self-start">Verification Code</Label>
-                  <InputOTP
-                    maxLength={6}
-                    value={otp}
-                    onChange={(val) => setOtp(val)}
-                  >
+                  <Label htmlFor="otp" className="self-start">
+                    Verification Code
+                  </Label>
+                  <InputOTP maxLength={6} value={otp} onChange={(val) => setOtp(val)}>
                     <InputOTPGroup>
                       <InputOTPSlot index={0} className="h-12 w-12 text-lg" />
                       <InputOTPSlot index={1} className="h-12 w-12 text-lg" />
@@ -259,7 +289,11 @@ function AuthPage() {
                   </InputOTP>
                 </div>
 
-                <Button type="submit" className="h-11 w-full text-base" disabled={isLoading || otp.length < 6}>
+                <Button
+                  type="submit"
+                  className="h-11 w-full text-base"
+                  disabled={isLoading || otp.length < 6}
+                >
                   {isLoading ? "Verifying..." : "Verify & Create Account"}
                 </Button>
 
@@ -280,27 +314,63 @@ function AuthPage() {
           ) : (
             <>
               <h1 className="text-2xl font-bold tracking-tight">Welcome to PropEase</h1>
-              <p className="mt-1.5 text-sm text-muted-foreground">Sign in or create an account to continue.</p>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                Sign in or create an account to continue.
+              </p>
 
-              <Tabs value={activeTab} onValueChange={(val: any) => setActiveTab(val)} className="mt-6">
+              <Tabs
+                value={activeTab}
+                onValueChange={(val: any) => setActiveTab(val)}
+                className="mt-6"
+              >
                 <TabsList className="grid w-full grid-cols-2">
                   <TabsTrigger value="signin">Sign in</TabsTrigger>
                   <TabsTrigger value="signup">Sign up</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="signin" className="mt-6">
-                  <form className="space-y-4" onSubmit={isResettingPassword ? (isResetCodeSent ? handleResetPassword : handleRequestPasswordReset) : handleSignIn}>
-                    {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
-                    {successMessage && <div className="rounded-md bg-green-500/15 p-3 text-sm text-green-700 dark:text-green-400">{successMessage}</div>}
+                  <form
+                    className="space-y-4"
+                    onSubmit={
+                      isResettingPassword
+                        ? isResetCodeSent
+                          ? handleResetPassword
+                          : handleRequestPasswordReset
+                        : handleSignIn
+                    }
+                  >
+                    {error && (
+                      <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+                        {error}
+                      </div>
+                    )}
+                    {successMessage && (
+                      <div className="rounded-md bg-green-500/15 p-3 text-sm text-green-700 dark:text-green-400">
+                        {successMessage}
+                      </div>
+                    )}
                     <div className="space-y-1.5">
                       <Label htmlFor="email">Email</Label>
-                      <Input id="email" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                      <Input
+                        id="email"
+                        type="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                      />
                     </div>
                     {!isResettingPassword ? (
                       <>
                         <div className="space-y-1.5">
                           <Label htmlFor="password">Password</Label>
-                          <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                          <Input
+                            id="password"
+                            type="password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            required
+                          />
                         </div>
                         <button
                           type="button"
@@ -316,7 +386,11 @@ function AuthPage() {
                         >
                           Forgot password?
                         </button>
-                        <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
+                        <Button
+                          type="submit"
+                          className="h-11 w-full text-base"
+                          disabled={isLoading}
+                        >
                           {isLoading ? "Signing in..." : "Sign in"}
                         </Button>
 
@@ -325,7 +399,9 @@ function AuthPage() {
                             <span className="w-full border-t" />
                           </div>
                           <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                            <span className="bg-background px-2 text-muted-foreground">
+                              Or continue with
+                            </span>
                           </div>
                         </div>
 
@@ -336,8 +412,20 @@ function AuthPage() {
                           disabled={isLoading}
                           onClick={handleGoogleSignIn}
                         >
-                          <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
-                            <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+                          <svg
+                            className="mr-2 h-4 w-4"
+                            aria-hidden="true"
+                            focusable="false"
+                            data-prefix="fab"
+                            data-icon="google"
+                            role="img"
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 488 512"
+                          >
+                            <path
+                              fill="currentColor"
+                              d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"
+                            ></path>
                           </svg>
                           Google
                         </Button>
@@ -348,16 +436,35 @@ function AuthPage() {
                           <>
                             <div className="space-y-1.5">
                               <Label htmlFor="reset-code">Verification code</Label>
-                              <Input id="reset-code" value={resetCode} onChange={(e) => setResetCode(e.target.value)} required />
+                              <Input
+                                id="reset-code"
+                                value={resetCode}
+                                onChange={(e) => setResetCode(e.target.value)}
+                                required
+                              />
                             </div>
                             <div className="space-y-1.5">
                               <Label htmlFor="new-password">New password</Label>
-                              <Input id="new-password" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required />
+                              <Input
+                                id="new-password"
+                                type="password"
+                                value={newPassword}
+                                onChange={(e) => setNewPassword(e.target.value)}
+                                required
+                              />
                             </div>
                           </>
                         )}
-                        <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
-                          {isLoading ? "Please wait..." : isResetCodeSent ? "Reset password" : "Send reset code"}
+                        <Button
+                          type="submit"
+                          className="h-11 w-full text-base"
+                          disabled={isLoading}
+                        >
+                          {isLoading
+                            ? "Please wait..."
+                            : isResetCodeSent
+                              ? "Reset password"
+                              : "Send reset code"}
                         </Button>
                         <Button
                           type="button"
@@ -386,31 +493,66 @@ function AuthPage() {
                         <h3 className="text-sm font-semibold text-accent">You've been invited!</h3>
                         <p className="mt-1 text-xs text-muted-foreground">
                           {inviteDetails.invite.inviteType === "maintenance" ? (
-                            <span>{inviteDetails.landlordName} invited you to join <strong>{inviteDetails.propertyName}</strong> as a Maintenance Worker.</span>
+                            <span>
+                              {inviteDetails.landlordName} invited you to join{" "}
+                              <strong>{inviteDetails.propertyName}</strong> as a Maintenance Worker.
+                            </span>
                           ) : (
-                            <span>{inviteDetails.landlordName} invited you to join <strong>{inviteDetails.propertyName}</strong> · Apt {inviteDetails.unitNumber}.</span>
+                            <span>
+                              {inviteDetails.landlordName} invited you to join{" "}
+                              <strong>{inviteDetails.propertyName}</strong> · Apt{" "}
+                              {inviteDetails.unitNumber}.
+                            </span>
                           )}
                         </p>
                       </div>
                     )}
-                    {error && <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">{error}</div>}
+                    {error && (
+                      <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
+                        {error}
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1.5">
                         <Label htmlFor="fn">First name</Label>
-                        <Input id="fn" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                        <Input
+                          id="fn"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          required
+                        />
                       </div>
                       <div className="space-y-1.5">
                         <Label htmlFor="ln">Last name</Label>
-                        <Input id="ln" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                        <Input
+                          id="ln"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          required
+                        />
                       </div>
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="email2">Email</Label>
-                      <Input id="email2" type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required disabled={!!inviteDetails?.invite?.email} />
+                      <Input
+                        id="email2"
+                        type="email"
+                        placeholder="you@example.com"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        disabled={!!inviteDetails?.invite?.email}
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="password2">Password</Label>
-                      <Input id="password2" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                      <Input
+                        id="password2"
+                        type="password"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                      />
                     </div>
                     <RolePicker role={role} setRole={setRole} availableRoles={displayRoles} />
                     <Button type="submit" className="h-11 w-full text-base" disabled={isLoading}>
@@ -422,7 +564,9 @@ function AuthPage() {
                         <span className="w-full border-t" />
                       </div>
                       <div className="relative flex justify-center text-xs uppercase">
-                        <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+                        <span className="bg-background px-2 text-muted-foreground">
+                          Or continue with
+                        </span>
                       </div>
                     </div>
 
@@ -433,8 +577,20 @@ function AuthPage() {
                       disabled={isLoading}
                       onClick={handleGoogleSignIn}
                     >
-                      <svg className="mr-2 h-4 w-4" aria-hidden="true" focusable="false" data-prefix="fab" data-icon="google" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 488 512">
-                        <path fill="currentColor" d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"></path>
+                      <svg
+                        className="mr-2 h-4 w-4"
+                        aria-hidden="true"
+                        focusable="false"
+                        data-prefix="fab"
+                        data-icon="google"
+                        role="img"
+                        xmlns="http://www.w3.org/2000/svg"
+                        viewBox="0 0 488 512"
+                      >
+                        <path
+                          fill="currentColor"
+                          d="M488 261.8C488 403.3 391.1 504 248 504 110.8 504 0 393.2 0 256S110.8 8 248 8c66.8 0 123 24.5 166.3 64.9l-67.5 64.9C258.5 52.6 94.3 116.6 94.3 256c0 86.5 69.1 156.6 153.7 156.6 98.2 0 135-70.4 140.8-106.9H248v-85.3h236.1c2.3 12.7 3.9 24.9 3.9 41.4z"
+                        ></path>
                       </svg>
                       Google
                     </Button>
@@ -450,8 +606,14 @@ function AuthPage() {
 }
 
 function RolePicker({
-  role, setRole, availableRoles,
-}: { role: string; setRole: (id: any) => void; availableRoles: typeof roles[number][] }) {
+  role,
+  setRole,
+  availableRoles,
+}: {
+  role: string;
+  setRole: (id: any) => void;
+  availableRoles: (typeof roles)[number][];
+}) {
   if (availableRoles.length === 1) return null; // Hide if locked to one role
   return (
     <div className="space-y-2">
@@ -471,7 +633,9 @@ function RolePicker({
                   : "border-border hover:border-accent/50 hover:bg-muted/40"
               }`}
             >
-              <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${active ? "text-accent" : "text-muted-foreground"}`} />
+              <Icon
+                className={`mt-0.5 h-4 w-4 shrink-0 ${active ? "text-accent" : "text-muted-foreground"}`}
+              />
               <div className="min-w-0">
                 <p className="text-sm font-medium leading-tight">{r.label}</p>
                 <p className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{r.desc}</p>

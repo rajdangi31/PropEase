@@ -13,10 +13,10 @@ export const Route = createFileRoute("/property/$propertyId")({
 
 function PropertyMapInsightsPage() {
   const { propertyId } = Route.useParams();
-  
+
   const { data, isLoading, isError, error } = usePropertyInsights(propertyId);
   const placesHook = useNearbyPlaces(data?.places || []);
-  
+
   const firstUnit = data?.units?.[0];
   const { data: rentData, isLoading: rentLoading } = useRentPrediction(firstUnit?.id || "");
 
@@ -49,11 +49,9 @@ function PropertyMapInsightsPage() {
   return (
     <div className="container mx-auto py-8 px-4 sm:px-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight mb-2">
-          {data.propertyDetails.name}
-        </h1>
+        <h1 className="text-3xl font-bold tracking-tight mb-2">{data.propertyDetails.name}</h1>
         <p className="text-muted-foreground flex items-center gap-1.5">
-          <MapPin className="w-4 h-4" /> 
+          <MapPin className="w-4 h-4" />
           Neighborhood Map & Insights
         </p>
       </div>
@@ -71,9 +69,9 @@ function PropertyMapInsightsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-5 gap-8 h-full min-h-[600px]">
         {/* Map View - Takes up more space on large screens */}
         <div className="lg:col-span-1 xl:col-span-3 order-1 lg:order-1 h-[500px] lg:h-auto">
-          <MapView 
-            propertyLat={data.propertyDetails.lat} 
-            propertyLon={data.propertyDetails.lon} 
+          <MapView
+            propertyLat={data.propertyDetails.lat}
+            propertyLon={data.propertyDetails.lon}
             propertyName={data.propertyDetails.name}
             places={data.places}
             activeCategory={placesHook.activeCategory}
@@ -82,7 +80,7 @@ function PropertyMapInsightsPage() {
 
         {/* Nearby Insights Sidebar */}
         <div className="lg:col-span-1 xl:col-span-2 order-2 lg:order-2 flex flex-col h-full lg:max-h-[800px]">
-          <NearbyInsights 
+          <NearbyInsights
             places={data.places}
             insights={data.insights}
             summary={data.summary}

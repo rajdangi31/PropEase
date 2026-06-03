@@ -10,28 +10,58 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
 import {
-  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { getMyPaymentsFn, generateRentInvoicesFn, getLandlordActiveLeasesFn, createManualPaymentFn } from "@/lib/data-server";
+import {
+  getMyPaymentsFn,
+  generateRentInvoicesFn,
+  getLandlordActiveLeasesFn,
+  createManualPaymentFn,
+} from "@/lib/data-server";
 
 export const Route = createFileRoute("/admin/payments")({
   loader: () =>
-    Promise.all([getMyPaymentsFn(), getLandlordActiveLeasesFn()]).then(
-      ([payments, leases]) => ({ payments, leases })
-    ),
+    Promise.all([getMyPaymentsFn(), getLandlordActiveLeasesFn()]).then(([payments, leases]) => ({
+      payments,
+      leases,
+    })),
   component: PaymentsPage,
 });
 
 function statusBadge(s: string) {
-  if (s === "Paid") return <Badge className="bg-success/15 text-success hover:bg-success/15">✅ Paid</Badge>;
-  if (s === "Pending") return <Badge variant="outline" className="border-warning/50 text-warning">⏳ Pending</Badge>;
-  return <Badge variant="outline" className="border-destructive/50 text-destructive">🔴 Late</Badge>;
+  if (s === "Paid")
+    return <Badge className="bg-success/15 text-success hover:bg-success/15">✅ Paid</Badge>;
+  if (s === "Pending")
+    return (
+      <Badge variant="outline" className="border-warning/50 text-warning">
+        ⏳ Pending
+      </Badge>
+    );
+  return (
+    <Badge variant="outline" className="border-destructive/50 text-destructive">
+      🔴 Late
+    </Badge>
+  );
 }
 
 function PaymentsPage() {
@@ -52,9 +82,15 @@ function PaymentsPage() {
   const [isReceiptDialogOpen, setIsReceiptDialogOpen] = useState(false);
 
   const totals = {
-    collected: payments.filter((p: any) => p.status === "Paid").reduce((s: number, p: any) => s + p.amount, 0),
-    pending: payments.filter((p: any) => p.status === "Pending").reduce((s: number, p: any) => s + p.amount, 0),
-    late: payments.filter((p: any) => p.status === "Late").reduce((s: number, p: any) => s + p.amount, 0),
+    collected: payments
+      .filter((p: any) => p.status === "Paid")
+      .reduce((s: number, p: any) => s + p.amount, 0),
+    pending: payments
+      .filter((p: any) => p.status === "Pending")
+      .reduce((s: number, p: any) => s + p.amount, 0),
+    late: payments
+      .filter((p: any) => p.status === "Late")
+      .reduce((s: number, p: any) => s + p.amount, 0),
   };
 
   const handleLeaseChange = (leaseId: string) => {
@@ -96,7 +132,7 @@ function PaymentsPage() {
           amount: Math.round(parseFloat(amount) * 100),
           category,
           paidDate,
-        }
+        },
       });
       toast.success("Manual payment logged successfully.");
       setIsDialogOpen(false);
@@ -141,7 +177,11 @@ function PaymentsPage() {
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="overview" className="mt-4 grid gap-4 md:grid-cols-3">
-          <Stat title="Collected this month" value={`$${totals.collected.toLocaleString()}`} tone="success" />
+          <Stat
+            title="Collected this month"
+            value={`$${totals.collected.toLocaleString()}`}
+            tone="success"
+          />
           <Stat title="Pending" value={`$${totals.pending.toLocaleString()}`} tone="warning" />
           <Stat title="Late" value={`$${totals.late.toLocaleString()}`} tone="error" />
         </TabsContent>
@@ -155,7 +195,8 @@ function PaymentsPage() {
                   </div>
                   <h2 className="mt-6 text-xl font-semibold tracking-tight">No payments yet</h2>
                   <p className="mt-2 max-w-sm text-sm text-muted-foreground">
-                    Payments will appear here once tenants are assigned to units with active leases. Click "Send Invoices" to generate rent invoices for the current billing period.
+                    Payments will appear here once tenants are assigned to units with active leases.
+                    Click "Send Invoices" to generate rent invoices for the current billing period.
                   </p>
                 </div>
               ) : (
@@ -175,7 +216,9 @@ function PaymentsPage() {
                       <TableRow key={p.id} className={i % 2 === 1 ? "bg-muted/30" : ""}>
                         <TableCell className="font-medium">{p.tenant}</TableCell>
                         <TableCell className="text-sm text-muted-foreground">{p.unit}</TableCell>
-                        <TableCell className="font-semibold">${p.amount.toLocaleString()}</TableCell>
+                        <TableCell className="font-semibold">
+                          ${p.amount.toLocaleString()}
+                        </TableCell>
                         <TableCell className="text-sm text-muted-foreground">{p.due}</TableCell>
                         <TableCell>{statusBadge(p.status)}</TableCell>
                         <TableCell className="text-right">
@@ -204,17 +247,27 @@ function PaymentsPage() {
         </TabsContent>
         <TabsContent value="settings" className="mt-4 space-y-4">
           <Card>
-            <CardHeader><CardTitle className="text-base">Late fee automation</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Late fee automation</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-4">
               <Toggle label="Auto-apply late fee" defaultChecked />
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label>Apply after (days)</Label><Input type="number" defaultValue={5} /></div>
-                <div className="space-y-1.5"><Label>Fee amount</Label><Input defaultValue="$50 or 5%" /></div>
+                <div className="space-y-1.5">
+                  <Label>Apply after (days)</Label>
+                  <Input type="number" defaultValue={5} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Fee amount</Label>
+                  <Input defaultValue="$50 or 5%" />
+                </div>
               </div>
             </CardContent>
           </Card>
           <Card>
-            <CardHeader><CardTitle className="text-base">Auto-reminders</CardTitle></CardHeader>
+            <CardHeader>
+              <CardTitle className="text-base">Auto-reminders</CardTitle>
+            </CardHeader>
             <CardContent className="space-y-3">
               <Toggle label="Send 3 days before due (Email)" defaultChecked />
               <Toggle label="Send on due date (SMS + Email)" defaultChecked />
@@ -237,7 +290,9 @@ function PaymentsPage() {
             <div className="space-y-1.5">
               <Label htmlFor="lease-select">Select Lease / Unit</Label>
               {leases.length === 0 ? (
-                <p className="text-sm text-destructive font-medium">No active leases found. Please sign a lease first.</p>
+                <p className="text-sm text-destructive font-medium">
+                  No active leases found. Please sign a lease first.
+                </p>
               ) : (
                 <Select value={selectedLeaseId} onValueChange={handleLeaseChange}>
                   <SelectTrigger id="lease-select">
@@ -332,15 +387,19 @@ function PaymentsPage() {
                     ✅ PAID
                   </Badge>
                 </div>
-                
+
                 <div className="border-t border-border pt-4 grid grid-cols-2 gap-y-3 text-sm">
                   <div>
                     <p className="text-xs text-muted-foreground">Receipt Number</p>
-                    <p className="font-mono font-medium mt-0.5">REC-{selectedPaymentForReceipt.id.substring(0, 8).toUpperCase()}</p>
+                    <p className="font-mono font-medium mt-0.5">
+                      REC-{selectedPaymentForReceipt.id.substring(0, 8).toUpperCase()}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Payment Date</p>
-                    <p className="font-medium mt-0.5">{selectedPaymentForReceipt.paidDate || selectedPaymentForReceipt.due || "N/A"}</p>
+                    <p className="font-medium mt-0.5">
+                      {selectedPaymentForReceipt.paidDate || selectedPaymentForReceipt.due || "N/A"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Tenant</p>
@@ -352,7 +411,9 @@ function PaymentsPage() {
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Category</p>
-                    <p className="font-medium mt-0.5 uppercase text-xs tracking-wider">{selectedPaymentForReceipt.category || "rent"}</p>
+                    <p className="font-medium mt-0.5 uppercase text-xs tracking-wider">
+                      {selectedPaymentForReceipt.category || "rent"}
+                    </p>
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground">Payment Method</p>
@@ -366,12 +427,19 @@ function PaymentsPage() {
               <div className="flex justify-between items-center text-base px-2">
                 <span className="font-medium text-muted-foreground">Total Paid</span>
                 <span className="font-bold text-2xl text-foreground">
-                  ${selectedPaymentForReceipt.amount.toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  $
+                  {selectedPaymentForReceipt.amount.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                  })}
                 </span>
               </div>
 
               <DialogFooter className="sm:justify-between gap-2 pt-2">
-                <Button variant="outline" className="w-full sm:w-auto" onClick={() => window.print()}>
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-auto"
+                  onClick={() => window.print()}
+                >
                   <Download className="mr-1.5 h-4 w-4" /> Print / PDF
                 </Button>
                 <Button className="w-full sm:w-auto" onClick={() => setIsReceiptDialogOpen(false)}>
@@ -386,13 +454,24 @@ function PaymentsPage() {
   );
 }
 
-function Stat({ title, value, tone }: { title: string; value: string; tone: "success" | "warning" | "error" }) {
-  const color = tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-destructive";
+function Stat({
+  title,
+  value,
+  tone,
+}: {
+  title: string;
+  value: string;
+  tone: "success" | "warning" | "error";
+}) {
+  const color =
+    tone === "success" ? "text-success" : tone === "warning" ? "text-warning" : "text-destructive";
   return (
-    <Card><CardContent className="p-5">
-      <p className="text-xs uppercase tracking-wider text-muted-foreground">{title}</p>
-      <p className={`mt-2 text-3xl font-bold ${color}`}>{value}</p>
-    </CardContent></Card>
+    <Card>
+      <CardContent className="p-5">
+        <p className="text-xs uppercase tracking-wider text-muted-foreground">{title}</p>
+        <p className={`mt-2 text-3xl font-bold ${color}`}>{value}</p>
+      </CardContent>
+    </Card>
   );
 }
 function Toggle({ label, defaultChecked }: { label: string; defaultChecked?: boolean }) {
@@ -403,4 +482,3 @@ function Toggle({ label, defaultChecked }: { label: string; defaultChecked?: boo
     </div>
   );
 }
-

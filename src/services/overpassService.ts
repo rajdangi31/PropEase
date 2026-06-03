@@ -14,7 +14,7 @@ export type ProcessedPlace = {
 export async function fetchNearbyPlaces(
   lat: number,
   lon: number,
-  radiusMeters: number = 2000
+  radiusMeters: number = 2000,
 ): Promise<ProcessedPlace[]> {
   // Single query for multiple categories
   const query = `
@@ -41,9 +41,9 @@ export async function fetchNearbyPlaces(
     try {
       const response = await fetch(url, {
         headers: {
-          "Accept": "application/json",
+          Accept: "application/json",
           "User-Agent": "PropEase/1.0",
-        }
+        },
       });
 
       if (response.status === 429) {
@@ -55,7 +55,7 @@ export async function fetchNearbyPlaces(
       }
 
       const data = await response.json();
-      
+
       const places: ProcessedPlace[] = [];
 
       if (!data.elements) return [];
@@ -63,12 +63,13 @@ export async function fetchNearbyPlaces(
       for (const element of data.elements) {
         if (element.type === "node" && element.tags) {
           const distance = calculateDistance(lat, lon, element.lat, element.lon);
-          
+
           let category: ProcessedPlace["category"] | null = null;
-          
+
           if (element.tags.amenity === "school") category = "school";
           else if (element.tags.amenity === "hospital") category = "hospital";
-          else if (element.tags.railway === "station" || element.tags.station === "subway") category = "transit";
+          else if (element.tags.railway === "station" || element.tags.station === "subway")
+            category = "transit";
           else if (element.tags.shop === "supermarket") category = "supermarket";
           else if (element.tags.amenity === "restaurant") category = "restaurant";
 
@@ -85,7 +86,6 @@ export async function fetchNearbyPlaces(
       }
 
       return places;
-
     } catch (error) {
       attempt++;
       if (attempt >= maxRetries) {

@@ -15,7 +15,7 @@ export const Route = createFileRoute("/admin")({
     if (user.role === "maintenance" || user.role === "service") {
       const allowedPaths = ["/admin/maintenance", "/admin/notifications"];
       const isAllowed = allowedPaths.some(
-        (p) => location.pathname === p || location.pathname.startsWith(p + "/")
+        (p) => location.pathname === p || location.pathname.startsWith(p + "/"),
       );
       if (!isAllowed) {
         throw redirect({ to: "/admin/maintenance" });

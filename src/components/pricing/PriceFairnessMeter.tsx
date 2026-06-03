@@ -9,11 +9,15 @@ type PriceFairnessMeterProps = {
   predictedRent: number;
 };
 
-export function PriceFairnessMeter({ fairness, currentRent, predictedRent }: PriceFairnessMeterProps) {
+export function PriceFairnessMeter({
+  fairness,
+  currentRent,
+  predictedRent,
+}: PriceFairnessMeterProps) {
   if (!currentRent) return null;
 
   const formatMoney = (val: number) => `₹${val.toLocaleString("en-IN")}`;
-  
+
   let Icon = CheckCircle2;
   let color = "text-green-500";
   let bg = "bg-green-500/10";
@@ -39,12 +43,14 @@ export function PriceFairnessMeter({ fairness, currentRent, predictedRent }: Pri
           <h4 className={`font-semibold ${color}`}>{fairness.assessment}</h4>
           {fairness.percentage > 0 && (
             <p className="text-sm opacity-80 mt-1">
-              The asking rent is {fairness.percentage}% {fairness.assessment === "Overpriced" ? "higher" : "lower"} than the AI recommended market rate.
+              The asking rent is {fairness.percentage}%{" "}
+              {fairness.assessment === "Overpriced" ? "higher" : "lower"} than the AI recommended
+              market rate.
             </p>
           )}
         </div>
       </div>
-      
+
       <div className="flex justify-between text-sm mt-2 pt-3 border-t border-black/10">
         <div>
           <span className="block opacity-70">Asking Rent</span>

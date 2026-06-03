@@ -6,7 +6,7 @@ export function LocationScore({ score }: LocationScoreProps) {
   const radius = 36;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - (score / 100) * circumference;
-  
+
   let colorClass = "text-red-500";
   if (score >= 80) colorClass = "text-green-500";
   else if (score >= 60) colorClass = "text-yellow-500";
@@ -41,7 +41,9 @@ export function LocationScore({ score }: LocationScoreProps) {
         </svg>
         <div className="absolute flex flex-col items-center justify-center text-center">
           <span className="text-3xl font-bold">{score}</span>
-          <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">Out of 100</span>
+          <span className="text-[10px] uppercase font-semibold text-muted-foreground tracking-wider">
+            Out of 100
+          </span>
         </div>
       </div>
       <h3 className="mt-4 font-semibold text-lg text-center">Overall Location Score</h3>

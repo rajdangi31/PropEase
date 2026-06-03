@@ -20,7 +20,7 @@ export async function getStripe(): Promise<Stripe> {
   if (stripeInstance) return stripeInstance;
 
   let stripeSecretKey = "";
-  
+
   if (import.meta.env?.DEV) {
     try {
       const { getPlatformProxy } = await import("wrangler");
@@ -43,7 +43,7 @@ export async function getStripe(): Promise<Stripe> {
 
   if (!stripeSecretKey) {
     throw new Error(
-      "STRIPE_SECRET_KEY is not configured. Please define it in your .dev.vars file for local development or Cloudflare environment variables for production."
+      "STRIPE_SECRET_KEY is not configured. Please define it in your .dev.vars file for local development or Cloudflare environment variables for production.",
     );
   }
 
@@ -55,8 +55,8 @@ export async function getStripe(): Promise<Stripe> {
   return stripeInstance;
 }
 
-export const createStripeCheckoutSessionFn = createServerFn({ method: "POST" })
-  .handler(async (ctx: any) => {
+export const createStripeCheckoutSessionFn = createServerFn({ method: "POST" }).handler(
+  async (ctx) => {
     const session = await requireAuth();
     if (session.role !== "tenant") {
       throw new Error("Only tenants can initiate rent payment checkout.");
@@ -68,9 +68,10 @@ export const createStripeCheckoutSessionFn = createServerFn({ method: "POST" })
     }
 
     const stripe = await getStripe();
-    
+
     // Determine redirect host and protocol
-    const host = ctx.request.headers.get("host") || "localhost:8080";
+    const { getRequestHeader } = await import("@tanstack/react-start/server");
+    const host = getRequestHeader("host") || "localhost:8080";
     const protocol = host.includes("localhost") || host.includes("127.0.0.1") ? "http" : "https";
     const successUrl = `${protocol}://${host}/tenant/pay?session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = `${protocol}://${host}/tenant/pay`;
@@ -108,11 +109,12 @@ export const createStripeCheckoutSessionFn = createServerFn({ method: "POST" })
     }
 
     return { checkoutUrl: checkoutSession.url };
-  });
+  },
+);
 
 export const verifyStripePaymentFn = createServerFn({ method: "POST" })
   .inputValidator((d: { sessionId: string }) => d)
-  .handler(async (ctx: any) => {
+  .handler(async (ctx) => {
     const { sessionId } = ctx.data;
     const session = await requireAuth();
     if (session.role !== "tenant") {

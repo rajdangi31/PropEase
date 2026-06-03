@@ -40,11 +40,13 @@ export function PropertySearchCard({ property }: PropertySearchCardProps) {
           </div>
         )}
       </div>
-      
+
       <div className="p-5 flex flex-col flex-1">
         <div className="flex items-start justify-between mb-2">
           <div>
-            <h3 className="font-semibold text-lg line-clamp-1">{property.propertyName} - Apt {property.unitNumber}</h3>
+            <h3 className="font-semibold text-lg line-clamp-1">
+              {property.propertyName} - Apt {property.unitNumber}
+            </h3>
             <div className="flex items-center text-muted-foreground text-sm mt-1">
               <MapPin className="w-3 h-3 mr-1" />
               <span className="line-clamp-1">
@@ -78,7 +80,10 @@ export function PropertySearchCard({ property }: PropertySearchCardProps) {
 
         <div className="flex flex-wrap gap-1 mt-2">
           {amenitiesList.slice(0, 3).map((a, i) => (
-            <span key={i} className="text-xs bg-muted px-2 py-1 rounded-md text-muted-foreground border border-border/50">
+            <span
+              key={i}
+              className="text-xs bg-muted px-2 py-1 rounded-md text-muted-foreground border border-border/50"
+            >
               {a}
             </span>
           ))}

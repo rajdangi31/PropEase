@@ -1,15 +1,25 @@
 import { Link, Outlet, useLocation, useRouter, useLoaderData } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Building2, CreditCard, Wrench, Bell,
-  LogOut, Menu, X,
+  LayoutDashboard,
+  Building2,
+  CreditCard,
+  Wrench,
+  Bell,
+  LogOut,
+  Menu,
+  X,
 } from "lucide-react";
 import { useState } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { signOutFn } from "@/lib/auth-server";
 import type { NotificationRow } from "@/db/queries";
@@ -53,13 +63,16 @@ function TenantSidebar({ user, onNavigate }: { user: UserData; onNavigate?: () =
       </div>
       <div className="px-5 pb-3">
         <p className="text-xs text-sidebar-foreground/60">Welcome back</p>
-        <p className="text-sm font-medium">{user.firstName} {user.lastName}</p>
+        <p className="text-sm font-medium">
+          {user.firstName} {user.lastName}
+        </p>
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {items.map((item) => {
-          const active = item.to === "/tenant"
-            ? location.pathname === "/tenant"
-            : location.pathname.startsWith(item.to);
+          const active =
+            item.to === "/tenant"
+              ? location.pathname === "/tenant"
+              : location.pathname.startsWith(item.to);
           const Icon = item.icon;
           return (
             <Link
@@ -94,7 +107,10 @@ export function TenantShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
   const path = router.state.location.pathname;
-  const { user, notifications } = useLoaderData({ from: "/tenant" }) as { user: UserData; notifications: NotificationRow[] };
+  const { user, notifications } = useLoaderData({ from: "/tenant" }) as {
+    user: UserData;
+    notifications: NotificationRow[];
+  };
 
   const title = (() => {
     if (path.includes("pay")) return "Pay Rent";

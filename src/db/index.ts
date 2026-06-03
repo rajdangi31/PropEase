@@ -32,10 +32,11 @@ export async function getDb() {
       const eventStorage = (globalThis as any)[storageKey];
       const event = eventStorage?.getStore()?.h3Event;
       if (event) {
-        env = event.context?.cloudflare?.env || 
-              event.node?.req?.runtime?.cloudflare?.env ||
-              event.node?.req?.__cloudflare_env || 
-              {};
+        env =
+          event.context?.cloudflare?.env ||
+          event.node?.req?.runtime?.cloudflare?.env ||
+          event.node?.req?.__cloudflare_env ||
+          {};
       }
     } catch (error) {
       // Ignore errors if context is accessed outside request lifecycle
@@ -49,14 +50,13 @@ export async function getDb() {
   }
 
   const d1 = env.DB as any | undefined;
-  
+
   if (!d1) {
     throw new Error(
       "D1 Database binding 'DB' not found in server context, Vinxi event context, process.env, or globalThis. " +
-      "Make sure you are running via wrangler or the cloudflare vite plugin."
+        "Make sure you are running via wrangler or the cloudflare vite plugin.",
     );
   }
 
   return drizzle(d1, { schema });
 }
-

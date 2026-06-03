@@ -14,7 +14,11 @@ interface SendEmailOptions {
 /**
  * Retrieves the Brevo configuration dynamically from Cloudflare bindings or fallbacks.
  */
-async function getBrevoConfig(): Promise<{ apiKey?: string; fromEmail?: string; fromName?: string }> {
+async function getBrevoConfig(): Promise<{
+  apiKey?: string;
+  fromEmail?: string;
+  fromName?: string;
+}> {
   if (import.meta.env?.DEV) {
     try {
       const { getPlatformProxy } = await import("wrangler");
@@ -93,7 +97,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
         headers: {
           "api-key": brevoConfig.apiKey,
           "Content-Type": "application/json",
-          "Accept": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({
           sender: {
@@ -113,7 +117,9 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error(`[BREVO ERROR] Brevo dispatch failed for ${to}: ${response.status} ${errText}`);
+        console.error(
+          `[BREVO ERROR] Brevo dispatch failed for ${to}: ${response.status} ${errText}`,
+        );
       } else {
         console.log(`[BREVO] Email successfully sent to ${to} via Brevo.`);
       }
@@ -128,7 +134,7 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
       const response = await fetch("https://api.resend.com/emails", {
         method: "POST",
         headers: {
-          "Authorization": `Bearer ${resendConfig.apiKey}`,
+          Authorization: `Bearer ${resendConfig.apiKey}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -142,7 +148,9 @@ export async function sendEmail({ to, subject, html, text }: SendEmailOptions) {
 
       if (!response.ok) {
         const errText = await response.text();
-        console.error(`[RESEND ERROR] Resend dispatch failed for ${to}: ${response.status} ${errText}`);
+        console.error(
+          `[RESEND ERROR] Resend dispatch failed for ${to}: ${response.status} ${errText}`,
+        );
       } else {
         console.log(`[RESEND] Email successfully sent to ${to} via Resend.`);
       }
@@ -165,7 +173,7 @@ ${divider}
 ║ Date:    ${new Date().toLocaleString()}
 ${divider}
 ║`);
-    
+
     for (const line of lines) {
       console.log(`║  ${line}`);
     }
@@ -175,5 +183,3 @@ ${footerBorder}
 `);
   }
 }
-
-

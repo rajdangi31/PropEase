@@ -1,7 +1,17 @@
 import { Link, Outlet, useLocation, useRouter } from "@tanstack/react-router";
 import {
-  LayoutDashboard, Building2, Users, CreditCard, Wrench, Bell, Settings,
-  Search, LogOut, ChevronDown, Menu, X,
+  LayoutDashboard,
+  Building2,
+  Users,
+  CreditCard,
+  Wrench,
+  Bell,
+  Settings,
+  Search,
+  LogOut,
+  ChevronDown,
+  Menu,
+  X,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { Logo } from "@/components/Logo";
@@ -10,8 +20,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem,
-  DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { properties, notifications } from "@/lib/mock-data";
@@ -28,7 +42,13 @@ const adminNav: NavItem[] = [
   { to: "/admin/settings", label: "Settings", icon: Settings },
 ];
 
-function SidebarContent({ activeProperty, onNavigate }: { activeProperty: string; onNavigate?: () => void }) {
+function SidebarContent({
+  activeProperty,
+  onNavigate,
+}: {
+  activeProperty: string;
+  onNavigate?: () => void;
+}) {
   const location = useLocation();
   return (
     <div className="flex h-full flex-col text-sidebar-foreground">
@@ -66,9 +86,10 @@ function SidebarContent({ activeProperty, onNavigate }: { activeProperty: string
 
       <nav className="flex-1 space-y-1 px-3">
         {adminNav.map((item) => {
-          const active = item.to === "/admin"
-            ? location.pathname === "/admin"
-            : location.pathname.startsWith(item.to);
+          const active =
+            item.to === "/admin"
+              ? location.pathname === "/admin"
+              : location.pathname.startsWith(item.to);
           const Icon = item.icon;
           return (
             <Link
@@ -91,13 +112,19 @@ function SidebarContent({ activeProperty, onNavigate }: { activeProperty: string
       <div className="border-t border-sidebar-border p-3">
         <div className="flex items-center gap-3 rounded-lg px-2 py-2">
           <Avatar className="h-9 w-9">
-            <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">EH</AvatarFallback>
+            <AvatarFallback className="bg-sidebar-primary text-sidebar-primary-foreground text-xs">
+              EH
+            </AvatarFallback>
           </Avatar>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-medium">Elena Hayes</p>
             <p className="truncate text-xs text-sidebar-foreground/60">Property Owner</p>
           </div>
-          <Link to="/" aria-label="Sign out" className="rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground">
+          <Link
+            to="/"
+            aria-label="Sign out"
+            className="rounded-md p-1.5 text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+          >
             <LogOut className="h-4 w-4" />
           </Link>
         </div>
@@ -106,7 +133,13 @@ function SidebarContent({ activeProperty, onNavigate }: { activeProperty: string
   );
 }
 
-export function AppShell({ children, role = "admin" }: { children?: ReactNode; role?: "admin" | "tenant" }) {
+export function AppShell({
+  children,
+  role = "admin",
+}: {
+  children?: ReactNode;
+  role?: "admin" | "tenant";
+}) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const router = useRouter();
   const path = router.state.location.pathname;
@@ -137,9 +170,14 @@ export function AppShell({ children, role = "admin" }: { children?: ReactNode; r
         <div className="fixed inset-0 z-50 md:hidden">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMobileOpen(false)} />
           <aside className="absolute left-0 top-0 h-full w-72 bg-sidebar shadow-xl">
-            {role === "admin"
-              ? <SidebarContent activeProperty={activeProperty} onNavigate={() => setMobileOpen(false)} />
-              : <TenantSidebar onNavigate={() => setMobileOpen(false)} />}
+            {role === "admin" ? (
+              <SidebarContent
+                activeProperty={activeProperty}
+                onNavigate={() => setMobileOpen(false)}
+              />
+            ) : (
+              <TenantSidebar onNavigate={() => setMobileOpen(false)} />
+            )}
           </aside>
         </div>
       )}
@@ -188,9 +226,7 @@ export function AppShell({ children, role = "admin" }: { children?: ReactNode; r
           </div>
         </header>
 
-        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
-          {children ?? <Outlet />}
-        </main>
+        <main className="flex-1 px-4 py-6 md:px-8 md:py-8">{children ?? <Outlet />}</main>
       </div>
     </div>
   );
@@ -222,9 +258,10 @@ function TenantSidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
       <nav className="flex-1 space-y-1 px-3">
         {items.map((item) => {
-          const active = item.to === "/tenant"
-            ? location.pathname === "/tenant"
-            : location.pathname.startsWith(item.to);
+          const active =
+            item.to === "/tenant"
+              ? location.pathname === "/tenant"
+              : location.pathname.startsWith(item.to);
           const Icon = item.icon;
           return (
             <Link
@@ -244,7 +281,10 @@ function TenantSidebar({ onNavigate }: { onNavigate?: () => void }) {
         })}
       </nav>
       <div className="border-t border-sidebar-border p-3">
-        <Link to="/" className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent">
+        <Link
+          to="/"
+          className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent"
+        >
           <LogOut className="h-4 w-4" /> Sign out
         </Link>
       </div>

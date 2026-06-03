@@ -3,7 +3,13 @@ import { SearchFilters } from "./SearchFilters";
 import { PropertySearchCard } from "./PropertySearchCard";
 import { PaginationControls } from "./PaginationControls";
 import { Loader2, SearchX } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function SearchLayout() {
   const { searchParams, query, updateSearch, clearFilters } = usePropertySearch();
@@ -15,11 +21,11 @@ export function SearchLayout() {
           <h1 className="text-3xl font-bold tracking-tight">Find your next home</h1>
           <p className="text-muted-foreground mt-1">Browse and filter available properties.</p>
         </div>
-        
+
         <div className="flex items-center gap-3 self-end md:self-auto">
           <span className="text-sm font-medium text-muted-foreground">Sort by:</span>
-          <Select 
-            value={searchParams.sortBy || "newest"} 
+          <Select
+            value={searchParams.sortBy || "newest"}
             onValueChange={(val: any) => updateSearch({ sortBy: val })}
           >
             <SelectTrigger className="w-[180px]">
@@ -36,10 +42,10 @@ export function SearchLayout() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         <div className="lg:col-span-1">
-          <SearchFilters 
-            searchParams={searchParams} 
-            updateSearch={updateSearch} 
-            clearFilters={clearFilters} 
+          <SearchFilters
+            searchParams={searchParams}
+            updateSearch={updateSearch}
+            clearFilters={clearFilters}
           />
         </div>
 
@@ -60,22 +66,23 @@ export function SearchLayout() {
               </div>
               <h3 className="text-xl font-semibold mb-2">No properties found</h3>
               <p className="text-muted-foreground max-w-sm">
-                We couldn't find any properties matching your current filters. Try adjusting your search criteria.
+                We couldn't find any properties matching your current filters. Try adjusting your
+                search criteria.
               </p>
             </div>
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {query.data?.data.map((property) => (
+                {query.data?.data.map((property: any) => (
                   <PropertySearchCard key={property.id} property={property} />
                 ))}
               </div>
-              
+
               {query.data?.pagination && (
-                <PaginationControls 
-                  currentPage={query.data.pagination.page} 
-                  totalPages={query.data.pagination.totalPages} 
-                  onPageChange={(page) => updateSearch({ page })} 
+                <PaginationControls
+                  currentPage={query.data.pagination.page}
+                  totalPages={query.data.pagination.totalPages}
+                  onPageChange={(page) => updateSearch({ page })}
                 />
               )}
             </>

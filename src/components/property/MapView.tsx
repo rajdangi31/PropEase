@@ -47,22 +47,30 @@ function RecenterAutomatically({ lat, lon }: { lat: number; lon: number }) {
   return null;
 }
 
-export function MapView({ propertyLat, propertyLon, propertyName, places, activeCategory }: MapViewProps) {
+export function MapView({
+  propertyLat,
+  propertyLon,
+  propertyName,
+  places,
+  activeCategory,
+}: MapViewProps) {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted) return <div className="w-full h-full min-h-[400px] bg-muted animate-pulse rounded-xl" />;
+  if (!mounted)
+    return <div className="w-full h-full min-h-[400px] bg-muted animate-pulse rounded-xl" />;
 
-  const filteredPlaces = activeCategory === "all" ? places : places.filter(p => p.category === activeCategory);
+  const filteredPlaces =
+    activeCategory === "all" ? places : places.filter((p) => p.category === activeCategory);
 
   return (
     <div className="w-full h-full min-h-[400px] md:min-h-[600px] rounded-xl overflow-hidden border border-border shadow-sm relative z-0">
-      <MapContainer 
-        center={[propertyLat, propertyLon]} 
-        zoom={14} 
+      <MapContainer
+        center={[propertyLat, propertyLon]}
+        zoom={14}
         scrollWheelZoom={false}
         className="w-full h-full z-0"
         style={{ height: "100%", width: "100%", minHeight: "400px" }}
@@ -71,12 +79,12 @@ export function MapView({ propertyLat, propertyLon, propertyName, places, active
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
           url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
         />
-        
+
         <RecenterAutomatically lat={propertyLat} lon={propertyLon} />
 
         {/* Property Marker */}
-        <Marker 
-          position={[propertyLat, propertyLon]} 
+        <Marker
+          position={[propertyLat, propertyLon]}
           icon={customIcon(categoryColors.property)}
           zIndexOffset={1000}
         >

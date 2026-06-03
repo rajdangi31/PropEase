@@ -29,21 +29,13 @@ export async function autoExpireLeases(db: any) {
 
 export async function getProfileByEmail(email: string) {
   const db = await getDb();
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.email, email))
-    .limit(1);
+  const [profile] = await db.select().from(profiles).where(eq(profiles.email, email)).limit(1);
   return profile;
 }
 
 export async function getProfileById(id: string) {
   const db = await getDb();
-  const [profile] = await db
-    .select()
-    .from(profiles)
-    .where(eq(profiles.id, id))
-    .limit(1);
+  const [profile] = await db.select().from(profiles).where(eq(profiles.id, id)).limit(1);
   return profile;
 }
 
@@ -81,16 +73,11 @@ export type PropertyWithCounts = {
 /**
  * Get all properties for a landlord, with unit and occupancy counts.
  */
-export async function getPropertiesByLandlord(
-  landlordId: string
-): Promise<PropertyWithCounts[]> {
+export async function getPropertiesByLandlord(landlordId: string): Promise<PropertyWithCounts[]> {
   const db = await getDb();
 
   // Get raw properties
-  const rows = await db
-    .select()
-    .from(properties)
-    .where(eq(properties.landlordId, landlordId));
+  const rows = await db.select().from(properties).where(eq(properties.landlordId, landlordId));
 
   // For each property, count total units and occupied units
   const result: PropertyWithCounts[] = [];
@@ -112,9 +99,7 @@ export async function getPropertiesByLandlord(
   return result;
 }
 
-export async function getPropertiesByWorker(
-  workerId: string
-): Promise<PropertyWithCounts[]> {
+export async function getPropertiesByWorker(workerId: string): Promise<PropertyWithCounts[]> {
   const db = await getDb();
   const { eq } = await import("drizzle-orm");
 
@@ -178,16 +163,11 @@ export type UnitWithTenant = {
  * Get all units for a property, with the current tenant's name
  * resolved through the active lease.
  */
-export async function getUnitsByProperty(
-  propertyId: string
-): Promise<UnitWithTenant[]> {
+export async function getUnitsByProperty(propertyId: string): Promise<UnitWithTenant[]> {
   const db = await getDb();
   await autoExpireLeases(db);
 
-  const unitRows = await db
-    .select()
-    .from(units)
-    .where(eq(units.propertyId, propertyId));
+  const unitRows = await db.select().from(units).where(eq(units.propertyId, propertyId));
 
   const result: UnitWithTenant[] = [];
 
@@ -199,12 +179,12 @@ export async function getUnitsByProperty(
       const activeLeases = await db
         .select()
         .from(leases)
-        .where(
-          and(eq(leases.unitId, unit.id), eq(leases.status, "active"))
-        );
+        .where(and(eq(leases.unitId, unit.id), eq(leases.status, "active")));
 
       const todayStr = new Date().toISOString().split("T")[0];
-      let activeLease = activeLeases.find((l: any) => l.startDate <= todayStr && l.endDate >= todayStr);
+      let activeLease = activeLeases.find(
+        (l: any) => l.startDate <= todayStr && l.endDate >= todayStr,
+      );
       if (!activeLease && activeLeases.length > 0) {
         activeLease = activeLeases.find((l: any) => l.startDate > todayStr) || activeLeases[0];
       }
@@ -264,12 +244,17 @@ export async function updateUnit(id: string, data: Partial<InsertUnit>) {
   return unit;
 }
 
-
 // ─── Tenant Queries ────────────────────────────────────────
 
 export type TenantRow = {
-  id: string; name: string; email: string; phone: string | null;
-  unit: string; leaseEnd: string; rent: number; status: string;
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  unit: string;
+  leaseEnd: string;
+  rent: number;
+  status: string;
   leaseId: string;
 };
 
@@ -277,30 +262,42 @@ export async function getTenantsByLandlord(landlordId: string): Promise<TenantRo
   const db = await getDb();
   await autoExpireLeases(db);
 
-  const props = await db.select({ id: properties.id, name: properties.name })
-    .from(properties).where(eq(properties.landlordId, landlordId));
+  const props = await db
+    .select({ id: properties.id, name: properties.name })
+    .from(properties)
+    .where(eq(properties.landlordId, landlordId));
   if (props.length === 0) return [];
 
   const result: TenantRow[] = [];
   for (const prop of props) {
     const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
     for (const unit of unitRows) {
-      const activeLeasesRaw = await db.select().from(leases)
+      const activeLeasesRaw = await db
+        .select()
+        .from(leases)
         .where(and(eq(leases.unitId, unit.id), eq(leases.status, "active")));
 
       const todayStr = new Date().toISOString().split("T")[0];
-      let currentLease = activeLeasesRaw.find((l: any) => l.startDate <= todayStr && l.endDate >= todayStr);
+      let currentLease = activeLeasesRaw.find(
+        (l: any) => l.startDate <= todayStr && l.endDate >= todayStr,
+      );
       if (!currentLease && activeLeasesRaw.length > 0) {
-        currentLease = activeLeasesRaw.find((l: any) => l.startDate > todayStr) || activeLeasesRaw[0];
+        currentLease =
+          activeLeasesRaw.find((l: any) => l.startDate > todayStr) || activeLeasesRaw[0];
       }
 
       const activeLeases = currentLease ? [currentLease] : [];
       for (const lease of activeLeases) {
-        const tenantLinks = await db.select().from(leaseTenants)
+        const tenantLinks = await db
+          .select()
+          .from(leaseTenants)
           .where(eq(leaseTenants.leaseId, lease.id));
         for (const link of tenantLinks) {
-          const [profile] = await db.select().from(profiles)
-            .where(eq(profiles.id, link.profileId)).limit(1);
+          const [profile] = await db
+            .select()
+            .from(profiles)
+            .where(eq(profiles.id, link.profileId))
+            .limit(1);
           if (profile) {
             result.push({
               id: profile.id,
@@ -334,34 +331,54 @@ export type MaintenanceRow = {
   status: string;
   submitted: string;
   assigned: string | null;
-  rawStatus: "pending" | "in_progress" | "resolved";
+  rawStatus: "pending" | "in_progress" | "resolved_pending" | "resolved";
   rawPriority: "low" | "medium" | "high" | "emergency";
   assignedWorkerId: string | null;
 };
 
 export async function getMaintenanceByLandlord(landlordId: string): Promise<MaintenanceRow[]> {
   const db = await getDb();
-  const props = await db.select({ id: properties.id, name: properties.name })
-    .from(properties).where(eq(properties.landlordId, landlordId));
+  const props = await db
+    .select({ id: properties.id, name: properties.name })
+    .from(properties)
+    .where(eq(properties.landlordId, landlordId));
   if (props.length === 0) return [];
 
   const result: MaintenanceRow[] = [];
   for (const prop of props) {
     const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
     for (const unit of unitRows) {
-      const requests = await db.select().from(maintenanceTable)
+      const requests = await db
+        .select()
+        .from(maintenanceTable)
         .where(eq(maintenanceTable.unitId, unit.id));
       for (const req of requests) {
-        const [tenant] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-          .from(profiles).where(eq(profiles.id, req.tenantId)).limit(1);
+        const [tenant] = await db
+          .select({ firstName: profiles.firstName, lastName: profiles.lastName })
+          .from(profiles)
+          .where(eq(profiles.id, req.tenantId))
+          .limit(1);
         let assignedName: string | null = null;
         if (req.assignedWorkerId) {
-          const [worker] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-            .from(profiles).where(eq(profiles.id, req.assignedWorkerId)).limit(1);
+          const [worker] = await db
+            .select({ firstName: profiles.firstName, lastName: profiles.lastName })
+            .from(profiles)
+            .where(eq(profiles.id, req.assignedWorkerId))
+            .limit(1);
           if (worker) assignedName = `${worker.firstName} ${worker.lastName}`;
         }
-        const statusMap: Record<string, string> = { pending: "Open", in_progress: "In Progress", resolved_pending: "Pending Approval", resolved: "Resolved" };
-        const priorityMap: Record<string, string> = { low: "Low", medium: "Medium", high: "High", emergency: "Emergency" };
+        const statusMap: Record<string, string> = {
+          pending: "Open",
+          in_progress: "In Progress",
+          resolved_pending: "Pending Approval",
+          resolved: "Resolved",
+        };
+        const priorityMap: Record<string, string> = {
+          low: "Low",
+          medium: "Medium",
+          high: "High",
+          emergency: "Emergency",
+        };
         result.push({
           id: req.id,
           title: req.title,
@@ -385,22 +402,39 @@ export async function getMaintenanceByLandlord(landlordId: string): Promise<Main
 
 export async function getMaintenanceByTenant(tenantId: string) {
   const db = await getDb();
-  const rows = await db.select().from(maintenanceTable)
+  const rows = await db
+    .select()
+    .from(maintenanceTable)
     .where(eq(maintenanceTable.tenantId, tenantId))
     .orderBy(desc(maintenanceTable.createdAt));
-  const statusMap: Record<string, string> = { pending: "Open", in_progress: "In Progress", resolved_pending: "Pending Approval", resolved: "Resolved" };
-  const priorityMap: Record<string, string> = { low: "Low", medium: "Medium", high: "High", emergency: "Emergency" };
+  const statusMap: Record<string, string> = {
+    pending: "Open",
+    in_progress: "In Progress",
+    resolved_pending: "Pending Approval",
+    resolved: "Resolved",
+  };
+  const priorityMap: Record<string, string> = {
+    low: "Low",
+    medium: "Medium",
+    high: "High",
+    emergency: "Emergency",
+  };
 
   const result = [];
   for (const r of rows) {
     let assignedName: string | null = null;
     if (r.assignedWorkerId) {
-      const [worker] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-        .from(profiles).where(eq(profiles.id, r.assignedWorkerId)).limit(1);
+      const [worker] = await db
+        .select({ firstName: profiles.firstName, lastName: profiles.lastName })
+        .from(profiles)
+        .where(eq(profiles.id, r.assignedWorkerId))
+        .limit(1);
       if (worker) assignedName = `${worker.firstName} ${worker.lastName}`;
     }
     const [unit] = await db.select().from(units).where(eq(units.id, r.unitId)).limit(1);
-    const [prop] = unit ? await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1) : [null];
+    const [prop] = unit
+      ? await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1)
+      : [null];
 
     result.push({
       id: r.id,
@@ -422,32 +456,49 @@ export async function getMaintenanceByTenant(tenantId: string) {
 
 export async function getMaintenanceByWorker(workerId: string): Promise<MaintenanceRow[]> {
   const db = await getDb();
-  
-  const requests = await db.select().from(maintenanceTable)
+
+  const requests = await db
+    .select()
+    .from(maintenanceTable)
     .where(eq(maintenanceTable.assignedWorkerId, workerId));
-    
+
   const result: MaintenanceRow[] = [];
   for (const req of requests) {
     const [unit] = await db.select().from(units).where(eq(units.id, req.unitId)).limit(1);
     if (!unit) continue;
-    const [prop] = await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+    const [prop] = await db
+      .select()
+      .from(properties)
+      .where(eq(properties.id, unit.propertyId))
+      .limit(1);
     if (!prop) continue;
-    
-    const [tenant] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-      .from(profiles).where(eq(profiles.id, req.tenantId)).limit(1);
-      
-    const [worker] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-      .from(profiles).where(eq(profiles.id, workerId)).limit(1);
-      
+
+    const [tenant] = await db
+      .select({ firstName: profiles.firstName, lastName: profiles.lastName })
+      .from(profiles)
+      .where(eq(profiles.id, req.tenantId))
+      .limit(1);
+
+    const [worker] = await db
+      .select({ firstName: profiles.firstName, lastName: profiles.lastName })
+      .from(profiles)
+      .where(eq(profiles.id, workerId))
+      .limit(1);
+
     const assignedName = worker ? `${worker.firstName} ${worker.lastName}` : null;
-    const statusMap: Record<string, string> = { 
-      pending: "Open", 
-      in_progress: "In Progress", 
-      resolved_pending: "Pending Approval", 
-      resolved: "Resolved" 
+    const statusMap: Record<string, string> = {
+      pending: "Open",
+      in_progress: "In Progress",
+      resolved_pending: "Pending Approval",
+      resolved: "Resolved",
     };
-    const priorityMap: Record<string, string> = { low: "Low", medium: "Medium", high: "High", emergency: "Emergency" };
-    
+    const priorityMap: Record<string, string> = {
+      low: "Low",
+      medium: "Medium",
+      high: "High",
+      emergency: "Emergency",
+    };
+
     result.push({
       id: req.id,
       title: req.title,
@@ -482,14 +533,10 @@ export type AssignableWorker = {
 export async function getAssignableWorkers(): Promise<AssignableWorker[]> {
   const db = await getDb();
   const { or, eq } = await import("drizzle-orm");
-  const rows = await db.select()
+  const rows = await db
+    .select()
     .from(profiles)
-    .where(
-      or(
-        eq(profiles.role, "maintenance"),
-        eq(profiles.role, "service")
-      )
-    );
+    .where(or(eq(profiles.role, "maintenance"), eq(profiles.role, "service")));
   return rows.map((r: any) => ({
     id: r.id,
     name: `${r.firstName} ${r.lastName}`,
@@ -497,30 +544,34 @@ export async function getAssignableWorkers(): Promise<AssignableWorker[]> {
   }));
 }
 
-export async function getAssignableWorkersForLandlord(landlordId: string): Promise<AssignableWorker[]> {
+export async function getAssignableWorkersForLandlord(
+  landlordId: string,
+): Promise<AssignableWorker[]> {
   const db = await getDb();
   const { eq, inArray } = await import("drizzle-orm");
-  
+
   // Find all properties owned by this landlord
-  const landlordProperties = await db.select({ id: properties.id })
+  const landlordProperties = await db
+    .select({ id: properties.id })
     .from(properties)
     .where(eq(properties.landlordId, landlordId));
-    
+
   if (landlordProperties.length === 0) return [];
-  
+
   const propIds = landlordProperties.map((p: any) => p.id);
-  
+
   // Find all workers linked to any of these properties
-  const rows = await db.selectDistinct({
-    id: profiles.id,
-    firstName: profiles.firstName,
-    lastName: profiles.lastName,
-    role: profiles.role,
-  })
-  .from(propertyWorkers)
-  .innerJoin(profiles, eq(propertyWorkers.profileId, profiles.id))
-  .where(inArray(propertyWorkers.propertyId, propIds));
-  
+  const rows = await db
+    .selectDistinct({
+      id: profiles.id,
+      firstName: profiles.firstName,
+      lastName: profiles.lastName,
+      role: profiles.role,
+    })
+    .from(propertyWorkers)
+    .innerJoin(profiles, eq(propertyWorkers.profileId, profiles.id))
+    .where(inArray(propertyWorkers.propertyId, propIds));
+
   return rows.map((r: any) => ({
     id: r.id,
     name: `${r.firstName} ${r.lastName}`,
@@ -534,7 +585,7 @@ export async function updateMaintenanceRequest(
     status?: "pending" | "in_progress" | "resolved_pending" | "resolved";
     priority?: "low" | "medium" | "high" | "emergency";
     assignedWorkerId?: string | null;
-  }
+  },
 ) {
   const db = await getDb();
   const { eq, and } = await import("drizzle-orm");
@@ -546,7 +597,8 @@ export async function updateMaintenanceRequest(
   if (data.assignedWorkerId !== undefined) cleanData.assignedWorkerId = data.assignedWorkerId;
 
   // 1. Update the maintenance request
-  const [row] = await db.update(maintenanceTable)
+  const [row] = await db
+    .update(maintenanceTable)
     .set({
       ...cleanData,
       updatedAt: sql`CURRENT_TIMESTAMP`,
@@ -559,17 +611,20 @@ export async function updateMaintenanceRequest(
   // 2. If status is updated, propagate changes to unit status globally
   if (data.status) {
     if (data.status === "in_progress" || data.status === "resolved_pending") {
-      await db.update(units)
+      await db
+        .update(units)
         .set({ status: "maintenance", updatedAt: sql`CURRENT_TIMESTAMP` })
         .where(eq(units.id, row.unitId));
     } else if (data.status === "resolved") {
       // Find if there is an active lease to determine if occupied or vacant
-      const activeLeases = await db.select()
+      const activeLeases = await db
+        .select()
         .from(leases)
         .where(and(eq(leases.unitId, row.unitId), eq(leases.status, "active")));
 
       const newStatus = activeLeases.length > 0 ? "occupied" : "vacant";
-      await db.update(units)
+      await db
+        .update(units)
         .set({ status: newStatus, updatedAt: sql`CURRENT_TIMESTAMP` })
         .where(eq(units.id, row.unitId));
     }
@@ -581,14 +636,22 @@ export async function updateMaintenanceRequest(
 // ─── Payment Queries ───────────────────────────────────────
 
 export type PaymentRow = {
-  id: string; tenant: string; unit: string; amount: number;
-  due: string; status: string; paidDate: string | null; category: string;
+  id: string;
+  tenant: string;
+  unit: string;
+  amount: number;
+  due: string;
+  status: string;
+  paidDate: string | null;
+  category: string;
 };
 
 export async function getPaymentsByLandlord(landlordId: string): Promise<PaymentRow[]> {
   const db = await getDb();
-  const props = await db.select({ id: properties.id, name: properties.name })
-    .from(properties).where(eq(properties.landlordId, landlordId));
+  const props = await db
+    .select({ id: properties.id, name: properties.name })
+    .from(properties)
+    .where(eq(properties.landlordId, landlordId));
   if (props.length === 0) return [];
 
   const result: PaymentRow[] = [];
@@ -597,12 +660,22 @@ export async function getPaymentsByLandlord(landlordId: string): Promise<Payment
     for (const unit of unitRows) {
       const leaseRows = await db.select().from(leases).where(eq(leases.unitId, unit.id));
       for (const lease of leaseRows) {
-        const paymentRows = await db.select().from(paymentsTable)
+        const paymentRows = await db
+          .select()
+          .from(paymentsTable)
           .where(eq(paymentsTable.leaseId, lease.id));
         for (const p of paymentRows) {
-          const [tenant] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-            .from(profiles).where(eq(profiles.id, p.tenantId)).limit(1);
-          const statusMap: Record<string, string> = { pending: "Pending", paid: "Paid", late: "Late", failed: "Failed" };
+          const [tenant] = await db
+            .select({ firstName: profiles.firstName, lastName: profiles.lastName })
+            .from(profiles)
+            .where(eq(profiles.id, p.tenantId))
+            .limit(1);
+          const statusMap: Record<string, string> = {
+            pending: "Pending",
+            paid: "Paid",
+            late: "Late",
+            failed: "Failed",
+          };
           result.push({
             id: p.id,
             tenant: tenant ? `${tenant.firstName} ${tenant.lastName}` : "Unknown",
@@ -622,9 +695,13 @@ export async function getPaymentsByLandlord(landlordId: string): Promise<Payment
 
 export async function getPaymentsByTenant(tenantId: string) {
   const db = await getDb();
-  const rows = await db.select().from(paymentsTable)
-    .where(eq(paymentsTable.tenantId, tenantId));
-  const statusMap: Record<string, string> = { pending: "Pending", paid: "Paid", late: "Late", failed: "Failed" };
+  const rows = await db.select().from(paymentsTable).where(eq(paymentsTable.tenantId, tenantId));
+  const statusMap: Record<string, string> = {
+    pending: "Pending",
+    paid: "Paid",
+    late: "Late",
+    failed: "Failed",
+  };
   return rows.map((p: any) => ({
     id: p.id,
     date: p.paidDate ?? p.dueDate,
@@ -650,7 +727,9 @@ export type NotificationRow = {
 
 export async function getNotificationsByUser(userId: string): Promise<NotificationRow[]> {
   const db = await getDb();
-  const rows = await db.select().from(notificationsTable)
+  const rows = await db
+    .select()
+    .from(notificationsTable)
     .where(eq(notificationsTable.recipientId, userId))
     .orderBy(desc(notificationsTable.createdAt))
     .limit(30);
@@ -693,16 +772,19 @@ export async function broadcastAnnouncement(
   landlordId: string,
   propertyId: string | null,
   title: string,
-  body: string
+  body: string,
 ) {
   const db = await getDb();
-  
+
   // 1. Find all target tenants
   let targetTenantIds: string[] = [];
-  
+
   if (propertyId) {
     // Tenants in a specific property
-    const unitsList = await db.select({ id: units.id }).from(units).where(eq(units.propertyId, propertyId));
+    const unitsList = await db
+      .select({ id: units.id })
+      .from(units)
+      .where(eq(units.propertyId, propertyId));
     const unitIds = unitsList.map((u: { id: string }) => u.id);
     if (unitIds.length > 0) {
       const activeLeases = await db
@@ -715,12 +797,17 @@ export async function broadcastAnnouncement(
           .select({ profileId: leaseTenants.profileId })
           .from(leaseTenants)
           .where(inArray(leaseTenants.leaseId, leaseIds));
-        targetTenantIds = Array.from(new Set(links.map((link: { profileId: string }) => link.profileId)));
+        targetTenantIds = Array.from(
+          new Set(links.map((link: { profileId: string }) => link.profileId)),
+        );
       }
     }
   } else {
     // All tenants under this landlord
-    const props = await db.select({ id: properties.id }).from(properties).where(eq(properties.landlordId, landlordId));
+    const props = await db
+      .select({ id: properties.id })
+      .from(properties)
+      .where(eq(properties.landlordId, landlordId));
     const propIds = props.map((p: { id: string }) => p.id);
     if (propIds.length > 0) {
       const unitsList = await db
@@ -739,7 +826,9 @@ export async function broadcastAnnouncement(
             .select({ profileId: leaseTenants.profileId })
             .from(leaseTenants)
             .where(inArray(leaseTenants.leaseId, leaseIds));
-          targetTenantIds = Array.from(new Set(links.map((link: { profileId: string }) => link.profileId)));
+          targetTenantIds = Array.from(
+            new Set(links.map((link: { profileId: string }) => link.profileId)),
+          );
         }
       }
     }
@@ -748,22 +837,25 @@ export async function broadcastAnnouncement(
   // 2. Insert notification records & dispatch emails
   const notificationsCreated = [];
   const { sendEmail } = await import("../lib/email");
-  
+
   for (const tenantId of targetTenantIds) {
     const [tenant] = await db.select().from(profiles).where(eq(profiles.id, tenantId)).limit(1);
-    
+
     // Create database notification
-    const [row] = await db.insert(notificationsTable).values({
-      id: crypto.randomUUID(),
-      recipientId: tenantId,
-      type: "announcement",
-      title,
-      body,
-      isRead: false,
-    }).returning();
-    
+    const [row] = await db
+      .insert(notificationsTable)
+      .values({
+        id: crypto.randomUUID(),
+        recipientId: tenantId,
+        type: "announcement",
+        title,
+        body,
+        isRead: false,
+      })
+      .returning();
+
     notificationsCreated.push(row);
-    
+
     // Send email notification
     if (tenant && tenant.email) {
       await sendEmail({
@@ -789,9 +881,9 @@ export async function broadcastAnnouncement(
 // ─── Dashboard Queries ─────────────────────────────────────
 
 export type RevenueDataPoint = {
-  month: string;    // e.g. "Jan 2026"
+  month: string; // e.g. "Jan 2026"
   collected: number; // dollars
-  pending: number;   // dollars
+  pending: number; // dollars
 };
 
 export type ActivityItem = {
@@ -811,9 +903,15 @@ export type ExpiringLease = {
 };
 
 export type DashboardStats = {
-  totalUnits: number; occupiedUnits: number; vacantUnits: number; maintenanceUnits: number;
-  occupancyRate: string; openRequests: number; highPriorityRequests: number;
-  collectedRevenue: number; pendingRevenue: number;
+  totalUnits: number;
+  occupiedUnits: number;
+  vacantUnits: number;
+  maintenanceUnits: number;
+  occupancyRate: string;
+  openRequests: number;
+  highPriorityRequests: number;
+  collectedRevenue: number;
+  pendingRevenue: number;
   revenueTimeSeries: RevenueDataPoint[];
   recentActivity: ActivityItem[];
   expiringLeases: ExpiringLease[];
@@ -822,24 +920,46 @@ export type DashboardStats = {
 
 export async function getDashboardStats(landlordId: string): Promise<DashboardStats> {
   const db = await getDb();
-  const props = await db.select({ id: properties.id, name: properties.name })
-    .from(properties).where(eq(properties.landlordId, landlordId));
+  const props = await db
+    .select({ id: properties.id, name: properties.name })
+    .from(properties)
+    .where(eq(properties.landlordId, landlordId));
 
   if (props.length === 0) {
-    return { totalUnits: 0, occupiedUnits: 0, vacantUnits: 0, maintenanceUnits: 0,
-      occupancyRate: "0%", openRequests: 0, highPriorityRequests: 0,
-      collectedRevenue: 0, pendingRevenue: 0,
-      revenueTimeSeries: [], recentActivity: [], expiringLeases: [],
-      hasData: false };
+    return {
+      totalUnits: 0,
+      occupiedUnits: 0,
+      vacantUnits: 0,
+      maintenanceUnits: 0,
+      occupancyRate: "0%",
+      openRequests: 0,
+      highPriorityRequests: 0,
+      collectedRevenue: 0,
+      pendingRevenue: 0,
+      revenueTimeSeries: [],
+      recentActivity: [],
+      expiringLeases: [],
+      hasData: false,
+    };
   }
 
-  let totalUnits = 0, occupiedUnits = 0, vacantUnits = 0, maintenanceUnits = 0;
-  let openRequests = 0, highPriority = 0;
-  let collected = 0, pending = 0;
+  let totalUnits = 0,
+    occupiedUnits = 0,
+    vacantUnits = 0,
+    maintenanceUnits = 0;
+  let openRequests = 0,
+    highPriority = 0;
+  let collected = 0,
+    pending = 0;
 
   // Build a map of unitId -> propName + unitNumber for labelling
   const unitLabelMap = new Map<string, string>();
-  const allPayments: { amount: number; status: string; paidDate: string | null; dueDate: string }[] = [];
+  const allPayments: {
+    amount: number;
+    status: string;
+    paidDate: string | null;
+    dueDate: string;
+  }[] = [];
 
   for (const prop of props) {
     const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
@@ -850,10 +970,16 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
       else if (u.status === "vacant") vacantUnits++;
       else maintenanceUnits++;
 
-      const reqs = await db.select().from(maintenanceTable).where(eq(maintenanceTable.unitId, u.id));
+      const reqs = await db
+        .select()
+        .from(maintenanceTable)
+        .where(eq(maintenanceTable.unitId, u.id));
       for (const r of reqs) {
-        if (r.status !== "resolved") { openRequests++; }
-        if ((r.priority === "high" || r.priority === "emergency") && r.status !== "resolved") highPriority++;
+        if (r.status !== "resolved") {
+          openRequests++;
+        }
+        if ((r.priority === "high" || r.priority === "emergency") && r.status !== "resolved")
+          highPriority++;
       }
 
       const leaseRows = await db.select().from(leases).where(eq(leases.unitId, u.id));
@@ -862,7 +988,12 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
         for (const p of pays) {
           if (p.status === "paid") collected += p.amount;
           else pending += p.amount;
-          allPayments.push({ amount: p.amount, status: p.status, paidDate: p.paidDate, dueDate: p.dueDate });
+          allPayments.push({
+            amount: p.amount,
+            status: p.status,
+            paidDate: p.paidDate,
+            dueDate: p.dueDate,
+          });
         }
       }
     }
@@ -871,7 +1002,20 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
   const rate = totalUnits > 0 ? ((occupiedUnits / totalUnits) * 100).toFixed(1) + "%" : "0%";
 
   // ── Revenue Time Series (last 6 months) ──
-  const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const monthNames = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+  ];
   const now = new Date();
   const revenueMap = new Map<string, { collected: number; pending: number }>();
 
@@ -896,7 +1040,11 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
   for (const [key, val] of revenueMap) {
     const [year, mon] = key.split("-");
     const label = `${monthNames[parseInt(mon, 10) - 1]} ${year}`;
-    revenueTimeSeries.push({ month: label, collected: val.collected / 100, pending: val.pending / 100 });
+    revenueTimeSeries.push({
+      month: label,
+      collected: val.collected / 100,
+      pending: val.pending / 100,
+    });
   }
 
   // ── Recent Activity (last 10 entries) ──
@@ -921,11 +1069,20 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
   const tenantIdSet = new Set<string>();
   tenantIdSet.add(landlordId);
   for (const prop of props) {
-    const unitRows = await db.select({ id: units.id }).from(units).where(eq(units.propertyId, prop.id));
+    const unitRows = await db
+      .select({ id: units.id })
+      .from(units)
+      .where(eq(units.propertyId, prop.id));
     for (const u of unitRows) {
-      const leaseRows = await db.select({ id: leases.id }).from(leases).where(eq(leases.unitId, u.id));
+      const leaseRows = await db
+        .select({ id: leases.id })
+        .from(leases)
+        .where(eq(leases.unitId, u.id));
       for (const l of leaseRows) {
-        const links = await db.select({ profileId: leaseTenants.profileId }).from(leaseTenants).where(eq(leaseTenants.leaseId, l.id));
+        const links = await db
+          .select({ profileId: leaseTenants.profileId })
+          .from(leaseTenants)
+          .where(eq(leaseTenants.leaseId, l.id));
         for (const link of links) tenantIdSet.add(link.profileId);
       }
     }
@@ -935,8 +1092,11 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
   for (const row of activityRows) {
     if (!tenantIdSet.has(row.actorId)) continue;
     if (recentActivity.length >= 8) break;
-    const [actor] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-      .from(profiles).where(eq(profiles.id, row.actorId)).limit(1);
+    const [actor] = await db
+      .select({ firstName: profiles.firstName, lastName: profiles.lastName })
+      .from(profiles)
+      .where(eq(profiles.id, row.actorId))
+      .limit(1);
     recentActivity.push({
       id: row.id,
       actionType: row.actionType,
@@ -954,20 +1114,27 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
   for (const prop of props) {
     const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
     for (const u of unitRows) {
-      const activeLeases = await db.select().from(leases)
+      const activeLeases = await db
+        .select()
+        .from(leases)
         .where(and(eq(leases.unitId, u.id), eq(leases.status, "active")));
       for (const lease of activeLeases) {
         const endMs = new Date(lease.endDate).getTime();
         const daysLeft = Math.ceil((endMs - todayMs) / (24 * 60 * 60 * 1000));
         if (daysLeft <= 90) {
           // Get primary tenant name
-          const [link] = await db.select().from(leaseTenants)
+          const [link] = await db
+            .select()
+            .from(leaseTenants)
             .where(and(eq(leaseTenants.leaseId, lease.id), eq(leaseTenants.isPrimary, true)))
             .limit(1);
           let tenantName = "Unknown";
           if (link) {
-            const [profile] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-              .from(profiles).where(eq(profiles.id, link.profileId)).limit(1);
+            const [profile] = await db
+              .select({ firstName: profiles.firstName, lastName: profiles.lastName })
+              .from(profiles)
+              .where(eq(profiles.id, link.profileId))
+              .limit(1);
             if (profile) tenantName = `${profile.firstName} ${profile.lastName}`;
           }
           expiringLeases.push({
@@ -986,10 +1153,18 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
   expiringLeases.sort((a, b) => a.daysUntilExpiry - b.daysUntilExpiry);
 
   return {
-    totalUnits, occupiedUnits, vacantUnits, maintenanceUnits,
-    occupancyRate: rate, openRequests, highPriorityRequests: highPriority,
-    collectedRevenue: collected / 100, pendingRevenue: pending / 100,
-    revenueTimeSeries, recentActivity, expiringLeases,
+    totalUnits,
+    occupiedUnits,
+    vacantUnits,
+    maintenanceUnits,
+    occupancyRate: rate,
+    openRequests,
+    highPriorityRequests: highPriority,
+    collectedRevenue: collected / 100,
+    pendingRevenue: pending / 100,
+    revenueTimeSeries,
+    recentActivity,
+    expiringLeases,
     hasData: true,
   };
 }
@@ -997,7 +1172,11 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
 // ─── Tenant Portal Queries ─────────────────────────────────
 
 export type TenantDashboardData = {
-  unitLabel: string; leaseEnd: string; rent: number; dueDate: string; balance: number;
+  unitLabel: string;
+  leaseEnd: string;
+  rent: number;
+  dueDate: string;
+  balance: number;
   hasLease: boolean;
 };
 
@@ -1006,13 +1185,18 @@ export async function getTenantDashboard(tenantId: string): Promise<TenantDashbo
   await autoExpireLeases(db);
 
   // Find active lease for this tenant
-  const tenantLinks = await db.select().from(leaseTenants)
+  const tenantLinks = await db
+    .select()
+    .from(leaseTenants)
     .where(eq(leaseTenants.profileId, tenantId));
 
-  const activeLeases: typeof leases.$inferSelect[] = [];
+  const activeLeases: (typeof leases.$inferSelect)[] = [];
   for (const link of tenantLinks) {
-    const [lease] = await db.select().from(leases)
-      .where(and(eq(leases.id, link.leaseId), eq(leases.status, "active"))).limit(1);
+    const [lease] = await db
+      .select()
+      .from(leases)
+      .where(and(eq(leases.id, link.leaseId), eq(leases.status, "active")))
+      .limit(1);
     if (lease) activeLeases.push(lease);
   }
 
@@ -1022,21 +1206,29 @@ export async function getTenantDashboard(tenantId: string): Promise<TenantDashbo
 
   // Prioritize lease covering today, fallback to future lease, then first lease
   const todayStr = new Date().toISOString().split("T")[0];
-  let lease = activeLeases.find(l => l.startDate <= todayStr && l.endDate >= todayStr);
+  let lease = activeLeases.find((l) => l.startDate <= todayStr && l.endDate >= todayStr);
   if (!lease) {
-    lease = activeLeases.find(l => l.startDate > todayStr) || activeLeases[0];
+    lease = activeLeases.find((l) => l.startDate > todayStr) || activeLeases[0];
   }
 
   const [unit] = await db.select().from(units).where(eq(units.id, lease.unitId)).limit(1);
-  if (!unit) return { unitLabel: "", leaseEnd: "", rent: 0, dueDate: "", balance: 0, hasLease: false };
+  if (!unit)
+    return { unitLabel: "", leaseEnd: "", rent: 0, dueDate: "", balance: 0, hasLease: false };
 
-  const [prop] = await db.select({ name: properties.name }).from(properties)
-    .where(eq(properties.id, unit.propertyId)).limit(1);
+  const [prop] = await db
+    .select({ name: properties.name })
+    .from(properties)
+    .where(eq(properties.id, unit.propertyId))
+    .limit(1);
 
   // Get pending payments
-  const pendingPays = await db.select().from(paymentsTable)
+  const pendingPays = await db
+    .select()
+    .from(paymentsTable)
     .where(and(eq(paymentsTable.leaseId, lease.id), eq(paymentsTable.tenantId, tenantId)));
-  const balance = pendingPays.filter((p: any) => p.status === "pending").reduce((s: any, p: any) => s + p.amount, 0);
+  const balance = pendingPays
+    .filter((p: any) => p.status === "pending")
+    .reduce((s: any, p: any) => s + p.amount, 0);
   const nextDue = pendingPays.find((p: any) => p.status === "pending");
 
   return {
@@ -1070,7 +1262,7 @@ export async function acceptInvite(id: string) {
 
 export async function payTenantPayment(tenantId: string) {
   const db = await getDb();
-  
+
   // Find all pending payments for this tenant
   const pendingPayments = await db
     .select()
@@ -1094,7 +1286,7 @@ export async function payTenantPayment(tenantId: string) {
       })
       .where(eq(paymentsTable.id, payment.id))
       .returning();
-      
+
     updatedPayments.push(updated);
 
     // Get tenant details for logs and emails
@@ -1106,16 +1298,17 @@ export async function payTenantPayment(tenantId: string) {
     const tenantName = tenant ? `${tenant.firstName} ${tenant.lastName}` : "Tenant";
 
     // Find the landlord to notify
-    const [lease] = await db
-      .select().from(leases).where(eq(leases.id, payment.leaseId)).limit(1);
-    
+    const [lease] = await db.select().from(leases).where(eq(leases.id, payment.leaseId)).limit(1);
+
     if (lease) {
-      const [unit] = await db
-        .select().from(units).where(eq(units.id, lease.unitId)).limit(1);
+      const [unit] = await db.select().from(units).where(eq(units.id, lease.unitId)).limit(1);
       if (unit) {
         const [property] = await db
-          .select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
-        
+          .select()
+          .from(properties)
+          .where(eq(properties.id, unit.propertyId))
+          .limit(1);
+
         if (property) {
           // 1. Notify Landlord in App
           await db.insert(notificationsTable).values({
@@ -1227,17 +1420,17 @@ PropEase Billing`;
 
 export async function payTenantPaymentWithStripe(tenantId: string, transactionId: string) {
   const db = await getDb();
-  
+
   // First, check if payments with this transaction ID have already been processed to ensure idempotency.
   const processed = await db
     .select()
     .from(paymentsTable)
     .where(eq(paymentsTable.transactionId, transactionId));
-    
+
   if (processed.length > 0) {
     return processed;
   }
-  
+
   // Find all pending payments for this tenant
   const pendingPayments = await db
     .select()
@@ -1262,7 +1455,7 @@ export async function payTenantPaymentWithStripe(tenantId: string, transactionId
       })
       .where(eq(paymentsTable.id, payment.id))
       .returning();
-      
+
     updatedPayments.push(updated);
 
     // Get tenant details for logs and emails
@@ -1274,16 +1467,17 @@ export async function payTenantPaymentWithStripe(tenantId: string, transactionId
     const tenantName = tenant ? `${tenant.firstName} ${tenant.lastName}` : "Tenant";
 
     // Find the landlord to notify
-    const [lease] = await db
-      .select().from(leases).where(eq(leases.id, payment.leaseId)).limit(1);
-    
+    const [lease] = await db.select().from(leases).where(eq(leases.id, payment.leaseId)).limit(1);
+
     if (lease) {
-      const [unit] = await db
-        .select().from(units).where(eq(units.id, lease.unitId)).limit(1);
+      const [unit] = await db.select().from(units).where(eq(units.id, lease.unitId)).limit(1);
       if (unit) {
         const [property] = await db
-          .select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
-        
+          .select()
+          .from(properties)
+          .where(eq(properties.id, unit.propertyId))
+          .limit(1);
+
         if (property) {
           // 1. Notify Landlord in App
           await db.insert(notificationsTable).values({
@@ -1397,7 +1591,6 @@ PropEase Billing`;
   return updatedPayments;
 }
 
-
 // ─── Document Queries ───────────────────────────────────────
 
 export type DocumentRow = {
@@ -1415,32 +1608,28 @@ export type DocumentRow = {
 
 export async function getTenantActiveLeaseAndProperty(tenantId: string) {
   const db = await getDb();
-  
+
   // Find primary lease
   const [link] = await db
     .select()
     .from(leaseTenants)
     .where(eq(leaseTenants.profileId, tenantId))
     .limit(1);
-    
+
   if (!link) return null;
-  
+
   const [lease] = await db
     .select()
     .from(leases)
     .where(and(eq(leases.id, link.leaseId), eq(leases.status, "active")))
     .limit(1);
-    
+
   if (!lease) return null;
-  
-  const [unit] = await db
-    .select()
-    .from(units)
-    .where(eq(units.id, lease.unitId))
-    .limit(1);
-    
+
+  const [unit] = await db.select().from(units).where(eq(units.id, lease.unitId)).limit(1);
+
   if (!unit) return null;
-  
+
   return {
     leaseId: lease.id,
     propertyId: unit.propertyId,
@@ -1456,7 +1645,7 @@ export async function createDocument(data: typeof documentsTable.$inferInsert) {
 
 export async function getDocumentsByTenant(tenantId: string): Promise<DocumentRow[]> {
   const db = await getDb();
-  
+
   const rows = await db
     .select({
       id: documentsTable.id,
@@ -1478,7 +1667,7 @@ export async function getDocumentsByTenant(tenantId: string): Promise<DocumentRo
     .leftJoin(units, eq(leases.unitId, units.id))
     .where(eq(documentsTable.tenantId, tenantId))
     .orderBy(desc(documentsTable.createdAt));
-    
+
   return rows.map((r: any) => ({
     id: r.id,
     name: r.name,
@@ -1495,7 +1684,7 @@ export async function getDocumentsByTenant(tenantId: string): Promise<DocumentRo
 
 export async function getDocumentsForLandlord(landlordId: string): Promise<DocumentRow[]> {
   const db = await getDb();
-  
+
   const rows = await db
     .select({
       id: documentsTable.id,
@@ -1517,7 +1706,7 @@ export async function getDocumentsForLandlord(landlordId: string): Promise<Docum
     .leftJoin(units, eq(leases.unitId, units.id))
     .where(eq(properties.landlordId, landlordId))
     .orderBy(desc(documentsTable.createdAt));
-    
+
   return rows.map((r: any) => ({
     id: r.id,
     name: r.name,
@@ -1534,11 +1723,7 @@ export async function getDocumentsForLandlord(landlordId: string): Promise<Docum
 
 export async function getDocumentById(id: string) {
   const db = await getDb();
-  const [row] = await db
-    .select()
-    .from(documentsTable)
-    .where(eq(documentsTable.id, id))
-    .limit(1);
+  const [row] = await db.select().from(documentsTable).where(eq(documentsTable.id, id)).limit(1);
   return row;
 }
 
@@ -1576,7 +1761,7 @@ export async function createMaintenanceLog(data: typeof maintenanceLogs.$inferIn
 
 export async function getMaintenanceLogsByRequest(
   requestId: string,
-  includeInternal: boolean
+  includeInternal: boolean,
 ): Promise<MaintenanceLogWithAuthor[]> {
   const db = await getDb();
   const { eq, and, or } = await import("drizzle-orm");
@@ -1600,8 +1785,8 @@ export async function getMaintenanceLogsByRequest(
         ? eq(maintenanceLogs.requestId, requestId)
         : and(
             eq(maintenanceLogs.requestId, requestId),
-            or(eq(maintenanceLogs.isInternal, false), sql`is_internal = 0`)
-          )
+            or(eq(maintenanceLogs.isInternal, false), sql`is_internal = 0`),
+          ),
     )
     .orderBy(maintenanceLogs.createdAt);
 
@@ -1676,8 +1861,8 @@ export async function generateRentInvoices(landlordId: string): Promise<number> 
         and(
           eq(paymentsTable.leaseId, lease.id),
           eq(paymentsTable.tenantId, primaryTenantLink.profileId),
-          like(paymentsTable.dueDate, `${currentMonthStr}%`)
-        )
+          like(paymentsTable.dueDate, `${currentMonthStr}%`),
+        ),
       )
       .limit(1);
 
@@ -1732,30 +1917,42 @@ export async function getLandlordActiveLeases(landlordId: string): Promise<Activ
   const { eq, and } = await import("drizzle-orm");
 
   // Get landlord properties
-  const props = await db.select({ id: properties.id, name: properties.name })
-    .from(properties).where(eq(properties.landlordId, landlordId));
+  const props = await db
+    .select({ id: properties.id, name: properties.name })
+    .from(properties)
+    .where(eq(properties.landlordId, landlordId));
   if (props.length === 0) return [];
 
   const result: ActiveLeaseRow[] = [];
   for (const prop of props) {
     const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
     for (const unit of unitRows) {
-      const activeLeasesRaw = await db.select().from(leases)
+      const activeLeasesRaw = await db
+        .select()
+        .from(leases)
         .where(and(eq(leases.unitId, unit.id), eq(leases.status, "active")));
 
       const todayStr = new Date().toISOString().split("T")[0];
-      let currentLease = activeLeasesRaw.find((l: any) => l.startDate <= todayStr && l.endDate >= todayStr);
+      let currentLease = activeLeasesRaw.find(
+        (l: any) => l.startDate <= todayStr && l.endDate >= todayStr,
+      );
       if (!currentLease && activeLeasesRaw.length > 0) {
-        currentLease = activeLeasesRaw.find((l: any) => l.startDate > todayStr) || activeLeasesRaw[0];
+        currentLease =
+          activeLeasesRaw.find((l: any) => l.startDate > todayStr) || activeLeasesRaw[0];
       }
 
       const activeLeases = currentLease ? [currentLease] : [];
       for (const lease of activeLeases) {
-        const tenantLinks = await db.select().from(leaseTenants)
+        const tenantLinks = await db
+          .select()
+          .from(leaseTenants)
           .where(eq(leaseTenants.leaseId, lease.id));
         for (const link of tenantLinks) {
-          const [profile] = await db.select().from(profiles)
-            .where(eq(profiles.id, link.profileId)).limit(1);
+          const [profile] = await db
+            .select()
+            .from(profiles)
+            .where(eq(profiles.id, link.profileId))
+            .limit(1);
           if (profile) {
             result.push({
               leaseId: lease.id,
@@ -1780,33 +1977,40 @@ export async function createManualPayment(
     amount: number; // in cents
     category: "rent" | "deposit" | "utility" | "late_fee";
     paidDate: string;
-  }
+  },
 ) {
   const db = await getDb();
   const { eq } = await import("drizzle-orm");
-  
+
   // Verify landlord owns the property/lease
   const [lease] = await db.select().from(leases).where(eq(leases.id, data.leaseId)).limit(1);
   if (!lease) throw new Error("Lease not found");
   const [unit] = await db.select().from(units).where(eq(units.id, lease.unitId)).limit(1);
   if (!unit) throw new Error("Unit not found");
-  const [property] = await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+  const [property] = await db
+    .select()
+    .from(properties)
+    .where(eq(properties.id, unit.propertyId))
+    .limit(1);
   if (!property || property.landlordId !== landlordId) {
     throw new Error("Unauthorized to log payment for this lease");
   }
 
   const paymentId = crypto.randomUUID();
-  const [payment] = await db.insert(paymentsTable).values({
-    id: paymentId,
-    leaseId: data.leaseId,
-    tenantId: data.tenantId,
-    amount: data.amount,
-    category: data.category,
-    dueDate: data.paidDate,
-    paidDate: data.paidDate,
-    status: "paid",
-    transactionId: "Manual (Cash/Check)",
-  }).returning();
+  const [payment] = await db
+    .insert(paymentsTable)
+    .values({
+      id: paymentId,
+      leaseId: data.leaseId,
+      tenantId: data.tenantId,
+      amount: data.amount,
+      category: data.category,
+      dueDate: data.paidDate,
+      paidDate: data.paidDate,
+      status: "paid",
+      transactionId: "Manual (Cash/Check)",
+    })
+    .returning();
 
   // Get tenant details for logs and email
   const [tenant] = await db
@@ -1878,7 +2082,11 @@ export async function terminateLease(landlordId: string, leaseId: string) {
   if (!lease) throw new Error("Lease not found");
   const [unit] = await db.select().from(units).where(eq(units.id, lease.unitId)).limit(1);
   if (!unit) throw new Error("Unit not found");
-  const [property] = await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+  const [property] = await db
+    .select()
+    .from(properties)
+    .where(eq(properties.id, unit.propertyId))
+    .limit(1);
   if (!property || property.landlordId !== landlordId) {
     throw new Error("Unauthorized to terminate this lease.");
   }
@@ -1897,10 +2105,18 @@ export async function terminateLease(landlordId: string, leaseId: string) {
     .where(eq(units.id, lease.unitId));
 
   // 4. Log activity
-  const [tenantLink] = await db.select().from(leaseTenants).where(eq(leaseTenants.leaseId, leaseId)).limit(1);
+  const [tenantLink] = await db
+    .select()
+    .from(leaseTenants)
+    .where(eq(leaseTenants.leaseId, leaseId))
+    .limit(1);
   let tenantName = "Tenant";
   if (tenantLink) {
-    const [profile] = await db.select().from(profiles).where(eq(profiles.id, tenantLink.profileId)).limit(1);
+    const [profile] = await db
+      .select()
+      .from(profiles)
+      .where(eq(profiles.id, tenantLink.profileId))
+      .limit(1);
     if (profile) tenantName = `${profile.firstName} ${profile.lastName}`;
   }
 
@@ -1918,7 +2134,7 @@ export async function renewLease(
   landlordId: string,
   leaseId: string,
   newEndDate: string,
-  newMonthlyRentCents: number
+  newMonthlyRentCents: number,
 ) {
   const db = await getDb();
   const { eq } = await import("drizzle-orm");
@@ -1928,7 +2144,11 @@ export async function renewLease(
   if (!oldLease) throw new Error("Lease not found");
   const [unit] = await db.select().from(units).where(eq(units.id, oldLease.unitId)).limit(1);
   if (!unit) throw new Error("Unit not found");
-  const [property] = await db.select().from(properties).where(eq(properties.id, unit.propertyId)).limit(1);
+  const [property] = await db
+    .select()
+    .from(properties)
+    .where(eq(properties.id, unit.propertyId))
+    .limit(1);
   if (!property || property.landlordId !== landlordId) {
     throw new Error("Unauthorized to renew this lease.");
   }
@@ -1957,7 +2177,7 @@ export async function renewLease(
   // 5. Copy tenants to new lease
   const oldLinks = await db.select().from(leaseTenants).where(eq(leaseTenants.leaseId, leaseId));
   let primaryTenantName = "Tenant";
-  
+
   for (const link of oldLinks) {
     await db.insert(leaseTenants).values({
       leaseId: newLeaseId,
@@ -1966,7 +2186,11 @@ export async function renewLease(
     });
 
     if (link.isPrimary) {
-      const [profile] = await db.select().from(profiles).where(eq(profiles.id, link.profileId)).limit(1);
+      const [profile] = await db
+        .select()
+        .from(profiles)
+        .where(eq(profiles.id, link.profileId))
+        .limit(1);
       if (profile) primaryTenantName = `${profile.firstName} ${profile.lastName}`;
     }
   }

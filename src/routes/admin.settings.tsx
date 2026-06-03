@@ -67,25 +67,49 @@ function SettingsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label htmlFor="firstName">First name</Label>
-                <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
+                <Input
+                  id="firstName"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                />
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="lastName">Last name</Label>
-                <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} required />
+                <Input
+                  id="lastName"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                  required
+                />
               </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="middleName">Middle name (optional)</Label>
-              <Input id="middleName" value={middleName} onChange={(e) => setMiddleName(e.target.value)} />
+              <Input
+                id="middleName"
+                value={middleName}
+                onChange={(e) => setMiddleName(e.target.value)}
+              />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="email">Email address</Label>
-              <Input id="email" value={user?.email || ""} disabled className="opacity-70 cursor-not-allowed" />
+              <Input
+                id="email"
+                value={user?.email || ""}
+                disabled
+                className="opacity-70 cursor-not-allowed"
+              />
               <p className="text-xs text-muted-foreground">Email address cannot be changed.</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="phone">Phone number</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="(555) 000-0000" />
+              <Input
+                id="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="(555) 000-0000"
+              />
             </div>
             <Button type="submit" disabled={isSaving}>
               {isSaving ? "Saving..." : "Save changes"}
@@ -104,7 +128,10 @@ function SettingsPage() {
             "Weekly portfolio summary email",
             "Auto-renew expiring leases",
           ].map((label) => (
-            <div key={label} className="flex items-center justify-between rounded-lg border border-border p-3">
+            <div
+              key={label}
+              className="flex items-center justify-between rounded-lg border border-border p-3"
+            >
               <span className="text-sm">{label}</span>
               <Switch defaultChecked />
             </div>

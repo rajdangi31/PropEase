@@ -39,11 +39,11 @@ export function calculateLocationScore(
   hospitalsCount: number,
   transitCount: number,
   convenienceCount: number, // supermarkets
-  lifestyleCount: number    // restaurants
+  lifestyleCount: number, // restaurants
 ): LocationIntelligence {
-  
-  // Base scores (0-100) based on counts. 
-  const calcScore = (count: number, maxExpected: number) => Math.min(100, Math.round((count / maxExpected) * 100));
+  // Base scores (0-100) based on counts.
+  const calcScore = (count: number, maxExpected: number) =>
+    Math.min(100, Math.round((count / maxExpected) * 100));
 
   const schoolsScore = calcScore(schoolsCount, 5);
   const healthcareScore = calcScore(hospitalsCount, 3);
@@ -53,25 +53,26 @@ export function calculateLocationScore(
 
   const locationScore = Math.round(
     transitScore * 0.35 +
-    schoolsScore * 0.25 +
-    healthcareScore * 0.20 +
-    convenienceScore * 0.10 +
-    lifestyleScore * 0.10
+      schoolsScore * 0.25 +
+      healthcareScore * 0.2 +
+      convenienceScore * 0.1 +
+      lifestyleScore * 0.1,
   );
 
   let summaryParts = [];
   if (transitScore >= 80) summaryParts.push("Excellent connectivity with strong transit options");
   else if (transitScore >= 50) summaryParts.push("Moderate transit connectivity");
-  
+
   if (schoolsScore >= 80) summaryParts.push("multiple schools within walking distance");
   else if (schoolsScore > 0) summaryParts.push("some schools nearby");
-  
+
   if (healthcareScore >= 80) summaryParts.push("great healthcare access");
   else if (healthcareScore >= 40) summaryParts.push("good healthcare access");
 
-  const summary = summaryParts.length > 0 
-    ? summaryParts.join(", ").replace(/,([^,]*)$/, " and$1") + "."
-    : "Basic location with limited nearby amenities.";
+  const summary =
+    summaryParts.length > 0
+      ? summaryParts.join(", ").replace(/,([^,]*)$/, " and$1") + "."
+      : "Basic location with limited nearby amenities.";
 
   return {
     locationScore,
@@ -85,6 +86,6 @@ export function calculateLocationScore(
     transitGrade: getGrade(transitScore),
     convenienceGrade: getGrade(convenienceScore),
     lifestyleGrade: getGrade(lifestyleScore),
-    summary: summary.charAt(0).toUpperCase() + summary.slice(1)
+    summary: summary.charAt(0).toUpperCase() + summary.slice(1),
   };
 }

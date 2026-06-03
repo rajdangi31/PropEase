@@ -19,7 +19,7 @@ export function usePropertySearch() {
       search: (prev) => {
         // Strip undefined values to keep URL clean
         const newSearch: any = { ...prev, ...updates };
-        
+
         // Reset to page 1 if changing filters (unless explicitly updating page)
         if (updates.page === undefined) {
           newSearch.page = 1;
@@ -29,7 +29,7 @@ export function usePropertySearch() {
         if (newSearch.amenities?.length === 0) delete newSearch.amenities;
         if (!newSearch.city) delete newSearch.city;
         if (!newSearch.locality) delete newSearch.locality;
-        
+
         return newSearch;
       },
       replace: true, // Replace history to avoid huge history stacks when tweaking filters
