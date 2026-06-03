@@ -1,4 +1,4 @@
-import { eq, and, sql, desc } from "drizzle-orm";
+import { eq, and, sql, desc, inArray, like, or, asc, alias } from "drizzle-orm";
 import { getDb } from "./index";
 import {
   profiles,
@@ -267,58 +267,118 @@ export async function updateUnit(id: string, data: Partial<InsertUnit>) {
 
 // ─── Tenant Queries ────────────────────────────────────────
 
+type PaginationOptions = {
+  page?: number;
+  pageSize?: number;
+};
+
+type PaginatedTenantOptions = PaginationOptions & {
+  search?: string;
+  sortBy?: "name" | "leaseEnd" | "rent";
+  sortDir?: "asc" | "desc";
+};
+
+type PaginatedMaintenanceOptions = PaginationOptions & {
+  search?: string;
+  status?: "pending" | "in_progress" | "resolved_pending" | "resolved";
+  priority?: "low" | "medium" | "high" | "emergency";
+  sortBy?: "submitted" | "priority";
+  sortDir?: "asc" | "desc";
+};
+
+type PaginatedPaymentOptions = PaginationOptions & {
+  search?: string;
+  status?: "pending" | "paid" | "late" | "failed";
+  sortBy?: "due" | "amount";
+  sortDir?: "asc" | "desc";
+};
+
+type PaginatedDocumentOptions = PaginationOptions & {
+  search?: string;
+  status?: "pending_review" | "approved" | "rejected";
+};
+
+function getPaginationValues(options?: PaginationOptions) {
+  if (!options?.pageSize || options.pageSize <= 0) return null;
+  const pageSize = Math.min(Math.max(options.pageSize, 1), 100);
+  const page = Math.max(options.page ?? 1, 1);
+  return { limit: pageSize, offset: (page - 1) * pageSize };
+}
+
 export type TenantRow = {
   id: string; name: string; email: string; phone: string | null;
   unit: string; leaseEnd: string; rent: number; status: string;
   leaseId: string;
 };
 
-export async function getTenantsByLandlord(landlordId: string): Promise<TenantRow[]> {
+export async function getTenantsByLandlord(
+  landlordId: string,
+  options: PaginatedTenantOptions = {}
+): Promise<TenantRow[]> {
   const db = await getDb();
   await autoExpireLeases(db);
 
-  const props = await db.select({ id: properties.id, name: properties.name })
-    .from(properties).where(eq(properties.landlordId, landlordId));
-  if (props.length === 0) return [];
+  const search = options.search?.trim();
+  const searchPattern = search ? `%${search}%` : null;
+  const baseWhere = and(
+    eq(properties.landlordId, landlordId),
+    eq(leases.status, "active"),
+    searchPattern
+      ? or(
+          like(profiles.firstName, searchPattern),
+          like(profiles.lastName, searchPattern),
+          like(profiles.email, searchPattern),
+          like(properties.name, searchPattern),
+          like(units.unitNumber, searchPattern)
+        )
+      : undefined
+  );
 
-  const result: TenantRow[] = [];
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const unit of unitRows) {
-      const activeLeasesRaw = await db.select().from(leases)
-        .where(and(eq(leases.unitId, unit.id), eq(leases.status, "active")));
+  let query: any = db
+    .select({
+      id: profiles.id,
+      firstName: profiles.firstName,
+      lastName: profiles.lastName,
+      email: profiles.email,
+      phone: profiles.phone,
+      propertyName: properties.name,
+      unitNumber: units.unitNumber,
+      leaseEnd: leases.endDate,
+      rent: leases.monthlyRent,
+      leaseId: leases.id,
+    })
+    .from(leaseTenants)
+    .innerJoin(leases, eq(leaseTenants.leaseId, leases.id))
+    .innerJoin(units, eq(leases.unitId, units.id))
+    .innerJoin(properties, eq(units.propertyId, properties.id))
+    .innerJoin(profiles, eq(leaseTenants.profileId, profiles.id))
+    .where(baseWhere);
 
-      const todayStr = new Date().toISOString().split("T")[0];
-      let currentLease = activeLeasesRaw.find((l: any) => l.startDate <= todayStr && l.endDate >= todayStr);
-      if (!currentLease && activeLeasesRaw.length > 0) {
-        currentLease = activeLeasesRaw.find((l: any) => l.startDate > todayStr) || activeLeasesRaw[0];
-      }
-
-      const activeLeases = currentLease ? [currentLease] : [];
-      for (const lease of activeLeases) {
-        const tenantLinks = await db.select().from(leaseTenants)
-          .where(eq(leaseTenants.leaseId, lease.id));
-        for (const link of tenantLinks) {
-          const [profile] = await db.select().from(profiles)
-            .where(eq(profiles.id, link.profileId)).limit(1);
-          if (profile) {
-            result.push({
-              id: profile.id,
-              name: `${profile.firstName} ${profile.lastName}`,
-              email: profile.email,
-              phone: profile.phone,
-              unit: `${prop.name} · ${unit.unitNumber}`,
-              leaseEnd: lease.endDate,
-              rent: lease.monthlyRent / 100,
-              status: "Active",
-              leaseId: lease.id,
-            });
-          }
-        }
-      }
-    }
+  if (options.sortBy === "rent") {
+    query = query.orderBy(options.sortDir === "asc" ? asc(leases.monthlyRent) : desc(leases.monthlyRent));
+  } else if (options.sortBy === "leaseEnd") {
+    query = query.orderBy(options.sortDir === "asc" ? asc(leases.endDate) : desc(leases.endDate));
+  } else {
+    query = query.orderBy(options.sortDir === "asc" ? asc(profiles.firstName) : desc(profiles.firstName));
   }
-  return result;
+
+  const pagination = getPaginationValues(options);
+  if (pagination) {
+    query = query.limit(pagination.limit).offset(pagination.offset);
+  }
+
+  const rows = await query;
+  return rows.map((row: any) => ({
+    id: row.id,
+    name: `${row.firstName} ${row.lastName}`,
+    email: row.email,
+    phone: row.phone,
+    unit: `${row.propertyName} · ${row.unitNumber}`,
+    leaseEnd: row.leaseEnd,
+    rent: row.rent / 100,
+    status: "Active",
+    leaseId: row.leaseId,
+  }));
 }
 
 // ─── Maintenance Queries ───────────────────────────────────
@@ -339,48 +399,90 @@ export type MaintenanceRow = {
   assignedWorkerId: string | null;
 };
 
-export async function getMaintenanceByLandlord(landlordId: string): Promise<MaintenanceRow[]> {
+export async function getMaintenanceByLandlord(
+  landlordId: string,
+  options: PaginatedMaintenanceOptions = {}
+): Promise<MaintenanceRow[]> {
   const db = await getDb();
-  const props = await db.select({ id: properties.id, name: properties.name })
-    .from(properties).where(eq(properties.landlordId, landlordId));
-  if (props.length === 0) return [];
+  const tenantProfiles = alias(profiles, "tenant_profiles");
+  const workerProfiles = alias(profiles, "worker_profiles");
+  const search = options.search?.trim();
+  const searchPattern = search ? `%${search}%` : null;
 
-  const result: MaintenanceRow[] = [];
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const unit of unitRows) {
-      const requests = await db.select().from(maintenanceTable)
-        .where(eq(maintenanceTable.unitId, unit.id));
-      for (const req of requests) {
-        const [tenant] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-          .from(profiles).where(eq(profiles.id, req.tenantId)).limit(1);
-        let assignedName: string | null = null;
-        if (req.assignedWorkerId) {
-          const [worker] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-            .from(profiles).where(eq(profiles.id, req.assignedWorkerId)).limit(1);
-          if (worker) assignedName = `${worker.firstName} ${worker.lastName}`;
-        }
-        const statusMap: Record<string, string> = { pending: "Open", in_progress: "In Progress", resolved_pending: "Pending Approval", resolved: "Resolved" };
-        const priorityMap: Record<string, string> = { low: "Low", medium: "Medium", high: "High", emergency: "Emergency" };
-        result.push({
-          id: req.id,
-          title: req.title,
-          description: req.description,
-          unit: `${prop.name} · ${unit.unitNumber}`,
-          tenant: tenant ? `${tenant.firstName} ${tenant.lastName}` : "Unknown",
-          category: req.description.split(" ")[0] || "Other",
-          priority: priorityMap[req.priority] || req.priority,
-          status: statusMap[req.status] || req.status,
-          submitted: req.createdAt ?? "",
-          assigned: assignedName,
-          rawStatus: req.status as any,
-          rawPriority: req.priority as any,
-          assignedWorkerId: req.assignedWorkerId,
-        });
-      }
-    }
+  const baseWhere = and(
+    eq(properties.landlordId, landlordId),
+    options.status ? eq(maintenanceTable.status, options.status) : undefined,
+    options.priority ? eq(maintenanceTable.priority, options.priority) : undefined,
+    searchPattern
+      ? or(
+          like(maintenanceTable.title, searchPattern),
+          like(maintenanceTable.description, searchPattern),
+          like(properties.name, searchPattern),
+          like(units.unitNumber, searchPattern),
+          like(tenantProfiles.firstName, searchPattern),
+          like(tenantProfiles.lastName, searchPattern)
+        )
+      : undefined
+  );
+
+  let query: any = db
+    .select({
+      id: maintenanceTable.id,
+      title: maintenanceTable.title,
+      description: maintenanceTable.description,
+      priority: maintenanceTable.priority,
+      status: maintenanceTable.status,
+      createdAt: maintenanceTable.createdAt,
+      assignedWorkerId: maintenanceTable.assignedWorkerId,
+      propertyName: properties.name,
+      unitNumber: units.unitNumber,
+      tenantFirstName: tenantProfiles.firstName,
+      tenantLastName: tenantProfiles.lastName,
+      workerFirstName: workerProfiles.firstName,
+      workerLastName: workerProfiles.lastName,
+    })
+    .from(maintenanceTable)
+    .innerJoin(units, eq(maintenanceTable.unitId, units.id))
+    .innerJoin(properties, eq(units.propertyId, properties.id))
+    .leftJoin(tenantProfiles, eq(maintenanceTable.tenantId, tenantProfiles.id))
+    .leftJoin(workerProfiles, eq(maintenanceTable.assignedWorkerId, workerProfiles.id))
+    .where(baseWhere);
+
+  if (options.sortBy === "priority") {
+    query = query.orderBy(options.sortDir === "asc" ? asc(maintenanceTable.priority) : desc(maintenanceTable.priority));
+  } else {
+    query = query.orderBy(options.sortDir === "asc" ? asc(maintenanceTable.createdAt) : desc(maintenanceTable.createdAt));
   }
-  return result;
+
+  const pagination = getPaginationValues(options);
+  if (pagination) {
+    query = query.limit(pagination.limit).offset(pagination.offset);
+  }
+
+  const statusMap: Record<string, string> = {
+    pending: "Open",
+    in_progress: "In Progress",
+    resolved_pending: "Pending Approval",
+    resolved: "Resolved",
+  };
+  const priorityMap: Record<string, string> = { low: "Low", medium: "Medium", high: "High", emergency: "Emergency" };
+
+  const rows = await query;
+  return rows.map((req: any) => ({
+    id: req.id,
+    title: req.title,
+    description: req.description,
+    unit: `${req.propertyName} · ${req.unitNumber}`,
+    tenant: req.tenantFirstName ? `${req.tenantFirstName} ${req.tenantLastName}` : "Unknown",
+    category: req.description.split(" ")[0] || "Other",
+    priority: priorityMap[req.priority] || req.priority,
+    status: statusMap[req.status] || req.status,
+    submitted: req.createdAt ?? "",
+    assigned: req.workerFirstName ? `${req.workerFirstName} ${req.workerLastName}` : null,
+    rawStatus: req.status as any,
+    rawPriority: req.priority as any,
+    assignedWorkerId: req.assignedWorkerId,
+  }));
 }
 
 export async function getMaintenanceByTenant(tenantId: string) {
@@ -585,39 +687,70 @@ export type PaymentRow = {
   due: string; status: string; paidDate: string | null; category: string;
 };
 
-export async function getPaymentsByLandlord(landlordId: string): Promise<PaymentRow[]> {
+export async function getPaymentsByLandlord(
+  landlordId: string,
+  options: PaginatedPaymentOptions = {}
+): Promise<PaymentRow[]> {
   const db = await getDb();
-  const props = await db.select({ id: properties.id, name: properties.name })
-    .from(properties).where(eq(properties.landlordId, landlordId));
-  if (props.length === 0) return [];
+  const search = options.search?.trim();
+  const searchPattern = search ? `%${search}%` : null;
 
-  const result: PaymentRow[] = [];
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const unit of unitRows) {
-      const leaseRows = await db.select().from(leases).where(eq(leases.unitId, unit.id));
-      for (const lease of leaseRows) {
-        const paymentRows = await db.select().from(paymentsTable)
-          .where(eq(paymentsTable.leaseId, lease.id));
-        for (const p of paymentRows) {
-          const [tenant] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-            .from(profiles).where(eq(profiles.id, p.tenantId)).limit(1);
-          const statusMap: Record<string, string> = { pending: "Pending", paid: "Paid", late: "Late", failed: "Failed" };
-          result.push({
-            id: p.id,
-            tenant: tenant ? `${tenant.firstName} ${tenant.lastName}` : "Unknown",
-            unit: `${prop.name} · ${unit.unitNumber}`,
-            amount: p.amount / 100,
-            due: p.dueDate,
-            status: statusMap[p.status] || p.status,
-            paidDate: p.paidDate,
-            category: p.category,
-          });
-        }
-      }
-    }
+  const baseWhere = and(
+    eq(properties.landlordId, landlordId),
+    options.status ? eq(paymentsTable.status, options.status) : undefined,
+    searchPattern
+      ? or(
+          like(properties.name, searchPattern),
+          like(units.unitNumber, searchPattern),
+          like(profiles.firstName, searchPattern),
+          like(profiles.lastName, searchPattern)
+        )
+      : undefined
+  );
+
+  let query: any = db
+    .select({
+      id: paymentsTable.id,
+      amount: paymentsTable.amount,
+      dueDate: paymentsTable.dueDate,
+      paidDate: paymentsTable.paidDate,
+      status: paymentsTable.status,
+      category: paymentsTable.category,
+      propertyName: properties.name,
+      unitNumber: units.unitNumber,
+      firstName: profiles.firstName,
+      lastName: profiles.lastName,
+    })
+    .from(paymentsTable)
+    .innerJoin(leases, eq(paymentsTable.leaseId, leases.id))
+    .innerJoin(units, eq(leases.unitId, units.id))
+    .innerJoin(properties, eq(units.propertyId, properties.id))
+    .leftJoin(profiles, eq(paymentsTable.tenantId, profiles.id))
+    .where(baseWhere);
+
+  if (options.sortBy === "amount") {
+    query = query.orderBy(options.sortDir === "asc" ? asc(paymentsTable.amount) : desc(paymentsTable.amount));
+  } else {
+    query = query.orderBy(options.sortDir === "asc" ? asc(paymentsTable.dueDate) : desc(paymentsTable.dueDate));
   }
-  return result;
+
+  const pagination = getPaginationValues(options);
+  if (pagination) {
+    query = query.limit(pagination.limit).offset(pagination.offset);
+  }
+
+  const statusMap: Record<string, string> = { pending: "Pending", paid: "Paid", late: "Late", failed: "Failed" };
+  const rows = await query;
+  return rows.map((p: any) => ({
+    id: p.id,
+    tenant: p.firstName ? `${p.firstName} ${p.lastName}` : "Unknown",
+    unit: `${p.propertyName} · ${p.unitNumber}`,
+    amount: p.amount / 100,
+    due: p.dueDate,
+    status: statusMap[p.status] || p.status,
+    paidDate: p.paidDate,
+    category: p.category,
+  }));
 }
 
 export async function getPaymentsByTenant(tenantId: string) {
@@ -822,10 +955,12 @@ export type DashboardStats = {
 
 export async function getDashboardStats(landlordId: string): Promise<DashboardStats> {
   const db = await getDb();
-  const props = await db.select({ id: properties.id, name: properties.name })
-    .from(properties).where(eq(properties.landlordId, landlordId));
+  const props = await db
+    .select({ id: properties.id, name: properties.name })
+    .from(properties)
+    .where(eq(properties.landlordId, landlordId));
 
-  if (props.length === 0) {
+  if (props.length === 0 || props.length > 0 && props.every((p: any) => !p.id)) {
     return { totalUnits: 0, occupiedUnits: 0, vacantUnits: 0, maintenanceUnits: 0,
       occupancyRate: "0%", openRequests: 0, highPriorityRequests: 0,
       collectedRevenue: 0, pendingRevenue: 0,
@@ -833,38 +968,89 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
       hasData: false };
   }
 
-  let totalUnits = 0, occupiedUnits = 0, vacantUnits = 0, maintenanceUnits = 0;
-  let openRequests = 0, highPriority = 0;
-  let collected = 0, pending = 0;
+  const propIds = props.map((p: { id: string }) => p.id);
+  const unitsRows = await db
+    .select({
+      unitId: units.id,
+      unitNumber: units.unitNumber,
+      status: units.status,
+      propertyName: properties.name,
+    })
+    .from(units)
+    .innerJoin(properties, eq(units.propertyId, properties.id))
+    .where(inArray(units.propertyId, propIds));
 
-  // Build a map of unitId -> propName + unitNumber for labelling
+  if (unitsRows.length === 0) {
+    return {
+      totalUnits: 0,
+      occupiedUnits: 0,
+      vacantUnits: 0,
+      maintenanceUnits: 0,
+      occupancyRate: "0%",
+      openRequests: 0,
+      highPriorityRequests: 0,
+      collectedRevenue: 0,
+      pendingRevenue: 0,
+      revenueTimeSeries: [],
+      recentActivity: [],
+      expiringLeases: [],
+      hasData: true,
+    };
+  }
+
+  const unitIds = unitsRows.map((u: any) => u.unitId);
+  const totalUnits = unitsRows.length;
+  const occupiedUnits = unitsRows.filter((u: any) => u.status === "occupied").length;
+  const vacantUnits = unitsRows.filter((u: any) => u.status === "vacant").length;
+  const maintenanceUnits = unitsRows.filter((u: any) => u.status === "maintenance").length;
+
   const unitLabelMap = new Map<string, string>();
+  for (const unitRow of unitsRows) {
+    unitLabelMap.set(unitRow.unitId, `${unitRow.propertyName} · ${unitRow.unitNumber}`);
+  }
+
+  const maintenanceRows = await db
+    .select({
+      unitId: maintenanceTable.unitId,
+      status: maintenanceTable.status,
+      priority: maintenanceTable.priority,
+    })
+    .from(maintenanceTable)
+    .where(inArray(maintenanceTable.unitId, unitIds));
+  const openRequests = maintenanceRows.filter((r: any) => r.status !== "resolved").length;
+  const highPriority = maintenanceRows.filter(
+    (r: any) => (r.priority === "high" || r.priority === "emergency") && r.status !== "resolved"
+  ).length;
+
+  const leaseRows = await db
+    .select({
+      id: leases.id,
+      unitId: leases.unitId,
+      endDate: leases.endDate,
+      status: leases.status,
+    })
+    .from(leases)
+    .where(inArray(leases.unitId, unitIds));
+  const leaseIds = leaseRows.map((l: any) => l.id);
+
   const allPayments: { amount: number; status: string; paidDate: string | null; dueDate: string }[] = [];
+  let collected = 0;
+  let pending = 0;
+  if (leaseIds.length > 0) {
+    const paymentRows = await db
+      .select({
+        amount: paymentsTable.amount,
+        status: paymentsTable.status,
+        paidDate: paymentsTable.paidDate,
+        dueDate: paymentsTable.dueDate,
+      })
+      .from(paymentsTable)
+      .where(inArray(paymentsTable.leaseId, leaseIds));
 
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const u of unitRows) {
-      totalUnits++;
-      unitLabelMap.set(u.id, `${prop.name} · ${u.unitNumber}`);
-      if (u.status === "occupied") occupiedUnits++;
-      else if (u.status === "vacant") vacantUnits++;
-      else maintenanceUnits++;
-
-      const reqs = await db.select().from(maintenanceTable).where(eq(maintenanceTable.unitId, u.id));
-      for (const r of reqs) {
-        if (r.status !== "resolved") { openRequests++; }
-        if ((r.priority === "high" || r.priority === "emergency") && r.status !== "resolved") highPriority++;
-      }
-
-      const leaseRows = await db.select().from(leases).where(eq(leases.unitId, u.id));
-      for (const l of leaseRows) {
-        const pays = await db.select().from(paymentsTable).where(eq(paymentsTable.leaseId, l.id));
-        for (const p of pays) {
-          if (p.status === "paid") collected += p.amount;
-          else pending += p.amount;
-          allPayments.push({ amount: p.amount, status: p.status, paidDate: p.paidDate, dueDate: p.dueDate });
-        }
-      }
+    for (const p of paymentRows) {
+      if (p.status === "paid") collected += p.amount;
+      else pending += p.amount;
+      allPayments.push({ amount: p.amount, status: p.status, paidDate: p.paidDate, dueDate: p.dueDate });
     }
   }
 
@@ -900,10 +1086,6 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
   }
 
   // ── Recent Activity (last 10 entries) ──
-  const { inArray } = await import("drizzle-orm");
-  const propIds = props.map((p: { id: string; name: string }) => p.id);
-
-  // Activity logs authored by landlord OR related to their tenants
   const activityRows = await db
     .select({
       id: activityLogs.id,
@@ -916,18 +1098,31 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
     .orderBy(desc(activityLogs.createdAt))
     .limit(30); // fetch more to filter
 
-  // Filter to only activity relevant to this landlord
-  // Build a set of all tenant IDs under this landlord's properties
   const tenantIdSet = new Set<string>();
   tenantIdSet.add(landlordId);
-  for (const prop of props) {
-    const unitRows = await db.select({ id: units.id }).from(units).where(eq(units.propertyId, prop.id));
-    for (const u of unitRows) {
-      const leaseRows = await db.select({ id: leases.id }).from(leases).where(eq(leases.unitId, u.id));
-      for (const l of leaseRows) {
-        const links = await db.select({ profileId: leaseTenants.profileId }).from(leaseTenants).where(eq(leaseTenants.leaseId, l.id));
-        for (const link of links) tenantIdSet.add(link.profileId);
-      }
+  if (leaseIds.length > 0) {
+    const leaseTenantRows = await db
+      .select({ profileId: leaseTenants.profileId })
+      .from(leaseTenants)
+      .where(inArray(leaseTenants.leaseId, leaseIds));
+    for (const link of leaseTenantRows) tenantIdSet.add(link.profileId);
+  }
+
+  const actorIds = Array.from(
+    new Set(
+      activityRows
+        .map((row: any) => row.actorId)
+        .filter((actorId: string | null | undefined) => Boolean(actorId) && tenantIdSet.has(actorId))
+    )
+  ) as string[];
+  const actorMap = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const actorRows = await db
+      .select({ id: profiles.id, firstName: profiles.firstName, lastName: profiles.lastName })
+      .from(profiles)
+      .where(inArray(profiles.id, actorIds));
+    for (const actor of actorRows) {
+      actorMap.set(actor.id, `${actor.firstName} ${actor.lastName}`);
     }
   }
 
@@ -935,51 +1130,55 @@ export async function getDashboardStats(landlordId: string): Promise<DashboardSt
   for (const row of activityRows) {
     if (!tenantIdSet.has(row.actorId)) continue;
     if (recentActivity.length >= 8) break;
-    const [actor] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-      .from(profiles).where(eq(profiles.id, row.actorId)).limit(1);
     recentActivity.push({
       id: row.id,
       actionType: row.actionType,
       description: row.description,
       timestamp: row.createdAt ?? "",
-      actorName: actor ? `${actor.firstName} ${actor.lastName}` : "System",
+      actorName: actorMap.get(row.actorId) ?? "System",
     });
   }
 
   // ── Expiring Leases (within 90 days) ──
   const expiringLeases: ExpiringLease[] = [];
   const todayMs = now.getTime();
-  const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+  const activeLeaseRows = leaseRows.filter((lease: any) => lease.status === "active");
+  const activeLeaseIds = activeLeaseRows.map((lease: any) => lease.id);
 
-  for (const prop of props) {
-    const unitRows = await db.select().from(units).where(eq(units.propertyId, prop.id));
-    for (const u of unitRows) {
-      const activeLeases = await db.select().from(leases)
-        .where(and(eq(leases.unitId, u.id), eq(leases.status, "active")));
-      for (const lease of activeLeases) {
-        const endMs = new Date(lease.endDate).getTime();
-        const daysLeft = Math.ceil((endMs - todayMs) / (24 * 60 * 60 * 1000));
-        if (daysLeft <= 90) {
-          // Get primary tenant name
-          const [link] = await db.select().from(leaseTenants)
-            .where(and(eq(leaseTenants.leaseId, lease.id), eq(leaseTenants.isPrimary, true)))
-            .limit(1);
-          let tenantName = "Unknown";
-          if (link) {
-            const [profile] = await db.select({ firstName: profiles.firstName, lastName: profiles.lastName })
-              .from(profiles).where(eq(profiles.id, link.profileId)).limit(1);
-            if (profile) tenantName = `${profile.firstName} ${profile.lastName}`;
-          }
-          expiringLeases.push({
-            leaseId: lease.id,
-            unitLabel: `${prop.name} · ${u.unitNumber}`,
-            tenantName,
-            endDate: lease.endDate,
-            daysUntilExpiry: daysLeft,
-          });
-        }
+  const primaryTenantByLease = new Map<string, string>();
+  if (activeLeaseIds.length > 0) {
+    const primaryLinks = await db
+      .select({
+        leaseId: leaseTenants.leaseId,
+        profileId: leaseTenants.profileId,
+      })
+      .from(leaseTenants)
+      .where(and(inArray(leaseTenants.leaseId, activeLeaseIds), eq(leaseTenants.isPrimary, true)));
+
+    const primaryTenantIds = Array.from(new Set(primaryLinks.map((link: any) => link.profileId)));
+    if (primaryTenantIds.length > 0) {
+      const primaryProfiles = await db
+        .select({ id: profiles.id, firstName: profiles.firstName, lastName: profiles.lastName })
+        .from(profiles)
+        .where(inArray(profiles.id, primaryTenantIds));
+      const profileMap = new Map(primaryProfiles.map((p: any) => [p.id, `${p.firstName} ${p.lastName}`]));
+      for (const link of primaryLinks) {
+        primaryTenantByLease.set(link.leaseId, profileMap.get(link.profileId) ?? "Unknown");
       }
     }
+  }
+
+  for (const lease of activeLeaseRows) {
+    const endMs = new Date(lease.endDate).getTime();
+    const daysLeft = Math.ceil((endMs - todayMs) / (24 * 60 * 60 * 1000));
+    if (daysLeft > 90) continue;
+    expiringLeases.push({
+      leaseId: lease.id,
+      unitLabel: unitLabelMap.get(lease.unitId) ?? "Unknown",
+      tenantName: primaryTenantByLease.get(lease.id) ?? "Unknown",
+      endDate: lease.endDate,
+      daysUntilExpiry: daysLeft,
+    });
   }
 
   // Sort expiring leases by closest expiry first
@@ -1493,10 +1692,28 @@ export async function getDocumentsByTenant(tenantId: string): Promise<DocumentRo
   }));
 }
 
-export async function getDocumentsForLandlord(landlordId: string): Promise<DocumentRow[]> {
+export async function getDocumentsForLandlord(
+  landlordId: string,
+  options: PaginatedDocumentOptions = {}
+): Promise<DocumentRow[]> {
   const db = await getDb();
+  const search = options.search?.trim();
+  const searchPattern = search ? `%${search}%` : null;
+  const filters = and(
+    eq(properties.landlordId, landlordId),
+    options.status ? eq(documentsTable.status, options.status) : undefined,
+    searchPattern
+      ? or(
+          like(documentsTable.name, searchPattern),
+          like(profiles.firstName, searchPattern),
+          like(profiles.lastName, searchPattern),
+          like(properties.name, searchPattern),
+          like(units.unitNumber, searchPattern)
+        )
+      : undefined
+  );
   
-  const rows = await db
+  let query: any = db
     .select({
       id: documentsTable.id,
       name: documentsTable.name,
@@ -1515,8 +1732,15 @@ export async function getDocumentsForLandlord(landlordId: string): Promise<Docum
     .leftJoin(properties, eq(documentsTable.propertyId, properties.id))
     .leftJoin(leases, eq(documentsTable.leaseId, leases.id))
     .leftJoin(units, eq(leases.unitId, units.id))
-    .where(eq(properties.landlordId, landlordId))
+    .where(filters)
     .orderBy(desc(documentsTable.createdAt));
+
+  const pagination = getPaginationValues(options);
+  if (pagination) {
+    query = query.limit(pagination.limit).offset(pagination.offset);
+  }
+
+  const rows = await query;
     
   return rows.map((r: any) => ({
     id: r.id,

@@ -26,20 +26,36 @@ async function requireAuth() {
 // ─── Tenants ───────────────────────────────────────────────
 
 export const getMyTenantsFn = createServerFn({ method: "GET" })
-  .handler(async () => {
+  .inputValidator((d: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    sortBy?: "name" | "leaseEnd" | "rent";
+    sortDir?: "asc" | "desc";
+  } | undefined) => d)
+  .handler(async (ctx: any) => {
     const session = await requireAuth();
-    return getTenantsByLandlord(session.id);
+    return getTenantsByLandlord(session.id, ctx.data ?? {});
   });
 
 // ─── Maintenance ───────────────────────────────────────────
 
 export const getMyMaintenanceFn = createServerFn({ method: "GET" })
-  .handler(async () => {
+  .inputValidator((d: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: "pending" | "in_progress" | "resolved_pending" | "resolved";
+    priority?: "low" | "medium" | "high" | "emergency";
+    sortBy?: "submitted" | "priority";
+    sortDir?: "asc" | "desc";
+  } | undefined) => d)
+  .handler(async (ctx: any) => {
     const session = await requireAuth();
     if (session.role === "maintenance" || session.role === "service") {
       return getMaintenanceByWorker(session.id);
     }
-    return getMaintenanceByLandlord(session.id);
+    return getMaintenanceByLandlord(session.id, ctx.data ?? {});
   });
 
 export const getMyMaintenanceAsTenantFn = createServerFn({ method: "GET" })
@@ -251,9 +267,17 @@ PropEase Notifications`;
 // ─── Payments ──────────────────────────────────────────────
 
 export const getMyPaymentsFn = createServerFn({ method: "GET" })
-  .handler(async () => {
+  .inputValidator((d: {
+    page?: number;
+    pageSize?: number;
+    search?: string;
+    status?: "pending" | "paid" | "late" | "failed";
+    sortBy?: "due" | "amount";
+    sortDir?: "asc" | "desc";
+  } | undefined) => d)
+  .handler(async (ctx: any) => {
     const session = await requireAuth();
-    return getPaymentsByLandlord(session.id);
+    return getPaymentsByLandlord(session.id, ctx.data ?? {});
   });
 
 export const getMyPaymentsAsTenantFn = createServerFn({ method: "GET" })
