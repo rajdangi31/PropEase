@@ -43,6 +43,13 @@
       "when": 1780471184227,
       "tag": "0005_concerned_leper_queen",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1780671486932,
+      "tag": "0006_familiar_peter_parker",
+      "breakpoints": true
     }
   ]
 }

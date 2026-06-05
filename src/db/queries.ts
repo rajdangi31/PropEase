@@ -1925,17 +1925,27 @@ export async function generateRentInvoices(landlordId: string): Promise<number> 
 
     if (existing.length > 0) continue; // Invoice already generated for this month
 
-    // Create new rent payment
+    // Create new rent payment using idempotency key to prevent race conditions
     const paymentId = crypto.randomUUID();
-    await db.insert(paymentsTable).values({
-      id: paymentId,
-      leaseId: lease.id,
-      tenantId: primaryTenantLink.profileId,
-      amount: lease.monthlyRent,
-      category: "rent",
-      dueDate: defaultDueDate,
-      status: "pending",
-    });
+    const idempotencyKey = `invoice_${lease.id}_${currentMonthStr}`;
+    try {
+      await db.insert(paymentsTable).values({
+        id: paymentId,
+        leaseId: lease.id,
+        tenantId: primaryTenantLink.profileId,
+        amount: lease.monthlyRent,
+        category: "rent",
+        dueDate: defaultDueDate,
+        status: "pending",
+        idempotencyKey,
+      });
+    } catch (err: any) {
+      // If it fails with a UNIQUE constraint violation on idempotency_key, simply skip.
+      if (err.message && err.message.includes("UNIQUE constraint failed")) {
+        continue;
+      }
+      throw err;
+    }
 
     // Create notification for the tenant
     const unit = allUnits.find((u: any) => u.id === lease.unitId);

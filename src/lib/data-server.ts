@@ -1,7 +1,8 @@
 import { createServerFn } from "@tanstack/react-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { z } from "zod";
-import { verifySession } from "./auth-crypto";
+import { verifySession, hashPassword } from "./auth-crypto";
+import { enqueueJob } from "./queue-worker";
 import {
   getTenantsByLandlord,
   getMaintenanceByLandlord,
@@ -399,7 +400,8 @@ export const generateRentInvoicesFn = createServerFn({ method: "POST" }).handler
   const session = await requireAuth();
   if (session.role !== "landlord")
     throw new Error("Only landlords can trigger invoice generation.");
-  return generateRentInvoices(session.id);
+  await enqueueJob("invoice_generation", { landlordId: session.id });
+  return { success: true, message: "Invoices queued for generation." };
 });
 
 export const getMaintenanceLogsFn = createServerFn({ method: "GET" })
