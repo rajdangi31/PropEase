@@ -121,8 +121,8 @@ function PaymentsPage() {
   const handleSendInvoices = async () => {
     setIsGenerating(true);
     try {
-      const generatedCount = await generateRentInvoicesFn();
-      toast.success(`${generatedCount} rent invoice(s) generated successfully for active leases.`);
+      const response = await generateRentInvoicesFn();
+      toast.success(response.message);
       router.invalidate();
     } catch (err: any) {
       toast.error(err.message || "Failed to generate rent invoices.");

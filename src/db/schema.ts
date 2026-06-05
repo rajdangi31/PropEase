@@ -204,6 +204,7 @@ export const payments = sqliteTable(
       .notNull()
       .default("pending"),
     transactionId: text("transaction_id"), // Stripe/External reference
+    idempotencyKey: text("idempotency_key").unique(),
     createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
     updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
   },
@@ -253,6 +254,26 @@ export const activityLogs = sqliteTable(
   (table) => ({
     createdAtIdx: index("activity_created_idx").on(table.createdAt),
     actorIdx: index("activity_actor_idx").on(table.actorId),
+  }),
+);
+
+export const backgroundJobs = sqliteTable(
+  "background_jobs",
+  {
+    id: text("id").primaryKey(),
+    type: text("type").notNull(), // 'email', 'stripe_sync', 'invoice_generation', etc.
+    payload: text("payload").notNull(), // JSON string
+    status: text("status", {
+      enum: ["pending", "processing", "completed", "failed", "dead_letter"],
+    }).default("pending"),
+    attempts: integer("attempts").default(0),
+    maxAttempts: integer("max_attempts").default(3),
+    lastError: text("last_error"),
+    nextRunAt: integer("next_run_at").default(sql`(strftime('%s', 'now'))`), // Unix timestamp
+    createdAt: integer("created_at").default(sql`(strftime('%s', 'now'))`),
+  },
+  (table) => ({
+    statusNextRunIdx: index("bj_status_next_run_idx").on(table.status, table.nextRunAt),
   }),
 );
 

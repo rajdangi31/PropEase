@@ -1,34 +1,14 @@
 /**
- * Non-blocking email dispatcher.
+ * Non-blocking email dispatcher (via Background Jobs).
  *
- * Wraps sendEmail() in a fire-and-forget pattern so that HTTP responses
- * are not blocked by external email API calls. On Cloudflare Workers,
- * uses the execution context's waitUntil() to keep the isolate alive
- * until the email send completes.
+ * Wraps enqueueJob in a fire-and-forget pattern so that HTTP responses
+ * are not blocked by external email API calls.
  */
 import type { SendEmailOptions } from "./email";
+import { enqueueJob } from "./queue-worker";
 
 export function enqueueEmail(opts: SendEmailOptions) {
-  // Dynamically import sendEmail to avoid circular deps
-  const promise = import("./email")
-    .then(({ sendEmail }) => sendEmail(opts))
-    .catch((err) => {
-      console.error(`[EMAIL QUEUE] Failed to send to ${opts.to}:`, err);
-    });
-
-  // Try to use Cloudflare's waitUntil if available
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getCloudflareContext } = require("./cloudflare-env");
-    const ctx = getCloudflareContext?.();
-    if (ctx?.waitUntil) {
-      ctx.waitUntil(promise);
-      return;
-    }
-  } catch {
-    // Not in CF context — fall through
-  }
-
-  // Fallback: fire-and-forget (works in dev)
-  void promise;
+  enqueueJob("email", opts).catch((err) => {
+    console.error(`[EMAIL QUEUE] Failed to enqueue to ${opts.to}:`, err);
+  });
 }

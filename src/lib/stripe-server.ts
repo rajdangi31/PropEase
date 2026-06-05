@@ -78,31 +78,36 @@ export const createStripeCheckoutSessionFn = createServerFn({ method: "POST" }).
 
     const amountInCents = Math.round(dashboard.balance * 100);
 
-    const checkoutSession = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
-      line_items: [
-        {
-          price_data: {
-            currency: "usd",
-            product_data: {
-              name: `PropEase Rent Payment`,
-              description: `Apt ${dashboard.unitLabel}`,
+    const checkoutSession = await stripe.checkout.sessions.create(
+      {
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: `PropEase Rent Payment`,
+                description: `Apt ${dashboard.unitLabel}`,
+              },
+              unit_amount: amountInCents,
             },
-            unit_amount: amountInCents,
+            quantity: 1,
           },
-          quantity: 1,
+        ],
+        mode: "payment",
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        client_reference_id: session.id,
+        metadata: {
+          tenantId: session.id,
+          amountInCents: String(amountInCents),
+          unitLabel: dashboard.unitLabel,
         },
-      ],
-      mode: "payment",
-      success_url: successUrl,
-      cancel_url: cancelUrl,
-      client_reference_id: session.id,
-      metadata: {
-        tenantId: session.id,
-        amountInCents: String(amountInCents),
-        unitLabel: dashboard.unitLabel,
       },
-    });
+      {
+        idempotencyKey: `checkout_${session.id}_${amountInCents}_${new Date().toISOString().split("T")[0]}`,
+      }
+    );
 
     if (!checkoutSession.url) {
       throw new Error("Stripe did not return a checkout session URL.");
